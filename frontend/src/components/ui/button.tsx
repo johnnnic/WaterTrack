@@ -18,7 +18,7 @@ const buttonVariants = cva(
           "bg-secondary text-secondary-foreground shadow-sm hover:bg-secondary/80",
         ghost: "hover:bg-accent hover:text-accent-foreground",
         link: "text-primary underline-offset-4 hover:underline",
-        // Water Billing App Custom Variants
+        // WaterTrack Custom Variants
         gold: "bg-gradient-gold text-black font-semibold shadow-gold hover:shadow-elegant transform hover:scale-105 hover:bg-primary-hover",
         elegant: "bg-brown-dark text-foreground border border-brown-medium shadow-soft hover:bg-brown-medium hover:shadow-md transform hover:scale-105",
         minimal: "bg-transparent text-muted-foreground border border-brown-medium hover:text-foreground hover:border-gold hover:bg-accent",

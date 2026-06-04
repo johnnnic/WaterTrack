@@ -24,7 +24,7 @@ import {
 } from '@/components/ui/sidebar';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
-import logo from '@/assets/logo.png';
+import logo from '@/assets/logo.webp';
 
 export const AppSidebar: React.FC = () => {
   const { user, logout } = useAuth();

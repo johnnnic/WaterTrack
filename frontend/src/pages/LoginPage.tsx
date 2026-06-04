@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
-import logo from '@/assets/logo.png';
+import logo from '@/assets/logo.webp';
 
 export const LoginPage: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -59,7 +59,7 @@ export const LoginPage: React.FC = () => {
               className="w-16 h-16 rounded-xl"
             />
           </div>
-          <h1 className="text-3xl font-bold text-foreground mb-2">Water Billing App</h1>
+          <h1 className="text-3xl font-bold text-foreground mb-2">WaterTrack</h1>
           <p className="text-muted-foreground">Sistem Manajemen Tagihan Air</p>
         </div>
 
@@ -159,7 +159,7 @@ export const LoginPage: React.FC = () => {
 
         {/* Footer */}
         <div className="text-center text-sm text-muted-foreground">
-          <p>&copy; 2024 Water Billing App. Semua hak dilindungi.</p>
+          <p>&copy; 2024 WaterTrack. Semua hak dilindungi.</p>
         </div>
       </div>
     </div>
