@@ -55,13 +55,13 @@ class KlienController extends Controller {
             return response()->json(['message' => 'Permintaan pembayaran sudah diajukan.'], 422);
         }
 
-        if ($bill->status === 'sudah_bayar') {
-            return response()->json(['message' => 'Tagihan sudah lunas.'], 422);
+        if ($bill->status !== 'belum_bayar') {
+            return response()->json(['message' => 'Tagihan tidak dapat diajukan pembayaran.'], 422);
         }
 
         $bill->update([
             'status'                      => 'menunggu_konfirmasi',
-            'requested_metode_pembayaran' => $request->metode_pembayaran,
+            'requested_metode_pembayaran' => $request->input('metode_pembayaran'),
         ]);
 
         return response()->json($bill);
