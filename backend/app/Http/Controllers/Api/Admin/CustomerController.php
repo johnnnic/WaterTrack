@@ -7,6 +7,7 @@ use App\Models\Customer;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 
 class CustomerController extends Controller
 {
@@ -29,26 +30,27 @@ class CustomerController extends Controller
     public function store(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
-            'nomor_langganan' => 'required|string|unique:customers,nomor_langganan',
-            'nama' => 'required|string|max:255',
-            'alamat' => 'required|string',
-            'telepon' => 'nullable|string',
-            'status' => 'required|in:aktif,nonaktif',
-            'tarif_per_m3' => 'required|numeric|min:0',
-            'meteran_terakhir' => 'required|integer|min:0',
+            'nama'                  => 'required|string|max:255',
+            'alamat'                => 'required|string',
+            'telepon'               => 'nullable|string',
+            'status'                => 'required|in:aktif,nonaktif',
+            'tarif_per_m3'          => 'required|numeric|min:0',
+            'meteran_terakhir'      => 'required|integer|min:0',
             'tanggal_baca_terakhir' => 'nullable|date',
         ]);
 
         if ($validator->fails()) {
-            return response()->json([
-                'message' => 'Validation failed',
-                'errors' => $validator->errors()
-            ], 422);
+            return response()->json(['message' => 'Validation failed', 'errors' => $validator->errors()], 422);
         }
 
-        $customer = Customer::create($validator->validated());
+        do {
+            $nomor = Str::upper(Str::random(6));
+        } while (Customer::where('nomor_langganan', $nomor)->exists());
 
-        return response()->json($customer, 201);
+        $data = $validator->validated();
+        $data['nomor_langganan'] = $nomor;
+
+        return response()->json(Customer::create($data), 201);
     }
 
     /**
@@ -97,44 +99,62 @@ class CustomerController extends Controller
     }
 
     /**
-     * Import customers from array data
+     * Import customers from CSV file
      */
-    public function import(Request $request): JsonResponse
+    public function importCsv(Request $request): JsonResponse
     {
-        $validator = Validator::make($request->all(), [
-            'customers' => 'required|array',
-            'customers.*.nomor_langganan' => 'required|string|unique:customers,nomor_langganan',
-            'customers.*.nama' => 'required|string|max:255',
-            'customers.*.alamat' => 'required|string',
-            'customers.*.telepon' => 'nullable|string',
-            'customers.*.status' => 'required|in:aktif,nonaktif',
-            'customers.*.tarif_per_m3' => 'required|numeric|min:0',
-            'customers.*.meteran_terakhir' => 'required|integer|min:0',
+        $request->validate([
+            'file' => 'required|file|mimetypes:text/csv,text/plain,application/csv,application/octet-stream',
         ]);
 
-        if ($validator->fails()) {
-            return response()->json([
-                'message' => 'Validation failed',
-                'errors' => $validator->errors()
-            ], 422);
+        $handle  = fopen($request->file('file')->getPathname(), 'r');
+        fgetcsv($handle); // skip header row: nama,alamat,telepon,tarif_per_m3,meteran_awal
+
+        $success = 0;
+        $errors  = [];
+        $row     = 1;
+
+        while (($line = fgetcsv($handle)) !== false) {
+            $row++;
+            if (count($line) < 4) {
+                $errors[] = "Baris {$row}: Minimal 4 kolom diperlukan";
+                continue;
+            }
+
+            [$nama, $alamat, $telepon, $tarif, $meteranAwal] = array_pad($line, 5, null);
+
+            if (empty(trim($nama ?? '')) || !is_numeric($tarif)) {
+                $errors[] = "Baris {$row}: Nama atau tarif tidak valid";
+                continue;
+            }
+
+            try {
+                do {
+                    $nomor = Str::upper(Str::random(6));
+                } while (Customer::where('nomor_langganan', $nomor)->exists());
+
+                Customer::create([
+                    'nomor_langganan'       => $nomor,
+                    'nama'                  => trim($nama),
+                    'alamat'                => trim($alamat ?? ''),
+                    'telepon'               => trim($telepon ?? ''),
+                    'status'                => 'aktif',
+                    'tarif_per_m3'          => (float) $tarif,
+                    'meteran_terakhir'      => (int) ($meteranAwal ?? 0),
+                    'tanggal_baca_terakhir' => now(),
+                ]);
+                $success++;
+            } catch (\Exception $e) {
+                $errors[] = "Baris {$row}: " . $e->getMessage();
+            }
         }
 
-        try {
-            $customers = collect($request->customers)->map(function ($customerData) {
-                $customerData['tanggal_baca_terakhir'] = now();
-                return Customer::create($customerData);
-            });
+        fclose($handle);
 
-            return response()->json([
-                'message' => 'Import berhasil',
-                'imported_count' => $customers->count(),
-                'customers' => $customers
-            ], 201);
-        } catch (\Exception $e) {
-            return response()->json([
-                'message' => 'Terjadi kesalahan saat import data',
-                'error' => $e->getMessage()
-            ], 500);
-        }
+        return response()->json([
+            'berhasil' => $success,
+            'gagal'    => count($errors),
+            'errors'   => $errors,
+        ]);
     }
 }

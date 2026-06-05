@@ -146,4 +146,80 @@ class KasirController extends Controller
             ], 500);
         }
     }
+
+    public function unpaidBills(): JsonResponse
+    {
+        return response()->json(
+            Bill::with(['customer:id,nomor_langganan,nama'])
+                ->whereIn('status', ['belum_bayar', 'menunggu_konfirmasi'])
+                ->latest()
+                ->paginate(15)
+        );
+    }
+
+    public function pendingRequests(): JsonResponse
+    {
+        return response()->json(
+            Bill::with(['customer:id,nomor_langganan,nama'])
+                ->where('status', 'menunggu_konfirmasi')
+                ->latest()
+                ->paginate(15)
+        );
+    }
+
+    public function confirmPayment(Request $request, Bill $bill): JsonResponse
+    {
+        if ($bill->status === 'sudah_bayar') {
+            return response()->json(['message' => 'Tagihan sudah lunas.'], 422);
+        }
+        if ($bill->status !== 'menunggu_konfirmasi') {
+            return response()->json(['message' => 'Tagihan tidak dalam status menunggu konfirmasi.'], 422);
+        }
+
+        return DB::transaction(function () use ($bill) {
+            $payment = Payment::create([
+                'bill_id'            => $bill->id,
+                'user_id'            => Auth::id(),
+                'jumlah_bayar'       => $bill->jumlah_tagihan,
+                'metode_pembayaran'  => $bill->requested_metode_pembayaran ?? 'tunai',
+                'tanggal_bayar'      => now(),
+                'keterangan'         => 'Konfirmasi pembayaran klien oleh kasir',
+            ]);
+            $bill->update(['status' => 'sudah_bayar']);
+
+            return response()->json(['message' => 'Pembayaran dikonfirmasi.', 'payment' => $payment]);
+        });
+    }
+
+    public function payments(): JsonResponse
+    {
+        return response()->json(
+            Payment::with(['bill.customer:id,nomor_langganan,nama', 'user:id,name'])
+                ->latest()
+                ->paginate(15)
+        );
+    }
+
+    public function updatePayment(Request $request, Payment $payment): JsonResponse
+    {
+        $request->validate([
+            'metode_pembayaran' => 'required|in:tunai,transfer,kartu',
+            'keterangan'        => 'nullable|string',
+        ]);
+        $payment->update($request->only(['metode_pembayaran', 'keterangan']));
+        return response()->json($payment);
+    }
+
+    public function deletePayment(Payment $payment): JsonResponse
+    {
+        return DB::transaction(function () use ($payment) {
+            $bill = $payment->bill;
+            $payment->delete();
+            $bill->update([
+                'status'                      => 'belum_bayar',
+                'requested_metode_pembayaran' => null,
+            ]);
+            return response()->json(['message' => 'Transaksi dihapus, tagihan dikembalikan ke belum bayar.']);
+        });
+    }
 }
