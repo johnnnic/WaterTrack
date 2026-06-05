@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Customer extends Model
 {
@@ -28,10 +29,13 @@ class Customer extends Model
         return $this->hasMany(Bill::class);
     }
 
-    public function getTagihanTerakhir()
-    {
+    public function user(): HasOne {
+        return $this->hasOne(User::class);
+    }
+
+    public function getTagihanTerakhir() {
         return $this->bills()
-            ->where('status', 'belum_bayar')
+            ->whereIn('status', ['belum_bayar', 'menunggu_konfirmasi'])
             ->orderBy('periode', 'desc')
             ->first();
     }
