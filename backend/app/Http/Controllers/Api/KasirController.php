@@ -214,6 +214,9 @@ class KasirController extends Controller
     {
         return DB::transaction(function () use ($payment) {
             $bill = $payment->bill;
+            if (!$bill) {
+                return response()->json(['message' => 'Tagihan terkait tidak ditemukan.'], 404);
+            }
             $payment->delete();
             $bill->update([
                 'status'                      => 'belum_bayar',

@@ -107,7 +107,10 @@ class CustomerController extends Controller
             'file' => 'required|file|mimetypes:text/csv,text/plain,application/csv,application/octet-stream',
         ]);
 
-        $handle  = fopen($request->file('file')->getPathname(), 'r');
+        $handle = fopen($request->file('file')->getPathname(), 'r');
+        if ($handle === false) {
+            return response()->json(['message' => 'Gagal membuka file CSV.'], 500);
+        }
         fgetcsv($handle); // skip header row: nama,alamat,telepon,tarif_per_m3,meteran_awal
 
         $success = 0;
