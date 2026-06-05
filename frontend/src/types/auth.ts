@@ -24,7 +24,7 @@ export interface AuthContextType {
   token: string | null;
   mustChangePassword: boolean;
   login: (credentials: LoginRequest) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
   isLoading: boolean;
 }
