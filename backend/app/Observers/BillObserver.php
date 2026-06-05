@@ -17,7 +17,7 @@ class BillObserver {
             'subject_id'   => $model->id,
             'old_values'   => $old,
             'new_values'   => $new,
-            'ip_address'   => request()->ip() ?? 'system',
+            'ip_address'   => request()->ip(),
             'created_at'   => now(),
         ]);
     }

@@ -8,6 +8,14 @@ use Illuminate\Http\Request;
 
 class AuditLogController extends Controller {
     public function index(Request $request): JsonResponse {
+        $request->validate([
+            'user_id'      => 'sometimes|integer',
+            'action'       => 'sometimes|string|max:50',
+            'subject_type' => 'sometimes|string|max:50',
+            'date_from'    => 'sometimes|date',
+            'date_to'      => 'sometimes|date|after_or_equal:date_from',
+        ]);
+
         $q = AuditLog::with('user')->latest('created_at');
 
         if ($request->filled('user_id'))     $q->where('user_id', $request->user_id);

@@ -17,7 +17,8 @@ class UserObserver {
     }
     private function log(string $action, User $model, ?array $old, ?array $new): void {
         // Never log raw password values
-        unset($old['password'], $new['password']);
+        if ($old !== null) unset($old['password']);
+        if ($new !== null) unset($new['password']);
         AuditLog::create([
             'user_id'      => Auth::id(),
             'action'       => $action,
@@ -25,7 +26,7 @@ class UserObserver {
             'subject_id'   => $model->id,
             'old_values'   => $old,
             'new_values'   => $new,
-            'ip_address'   => request()->ip() ?? 'system',
+            'ip_address'   => request()->ip(),
             'created_at'   => now(),
         ]);
     }
