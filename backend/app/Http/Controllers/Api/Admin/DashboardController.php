@@ -64,11 +64,8 @@ class DashboardController extends Controller
                 'monthlyPaymentsAmount' => $monthlyPaymentsAmount,
             ]);
             
-        } catch (\Exception $e) {
-            return response()->json([
-                'message' => 'Failed to fetch dashboard stats',
-                'error' => $e->getMessage()
-            ], 500);
+        } catch (\Exception) {
+            return response()->json(['message' => 'Failed to fetch dashboard stats'], 500);
         }
     }
 
@@ -136,11 +133,8 @@ class DashboardController extends Controller
 
             return response()->json($activities);
             
-        } catch (\Exception $e) {
-            return response()->json([
-                'message' => 'Failed to fetch recent activities',
-                'error' => $e->getMessage()
-            ], 500);
+        } catch (\Exception) {
+            return response()->json(['message' => 'Failed to fetch recent activities'], 500);
         }
     }
 }
