@@ -189,7 +189,7 @@ POST /customer-info      # Get customer info
 1. **Clone the repository**
    ```bash
    git clone <repository-url>
-   cd water-billing-apps/backend
+   cd WaterTrack/backend
    ```
 
 2. **Install dependencies**
