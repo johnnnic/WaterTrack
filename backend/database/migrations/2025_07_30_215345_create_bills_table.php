@@ -15,9 +15,9 @@ return new class extends Migration
             $table->id();
             $table->foreignId('customer_id')->constrained()->onDelete('cascade');
             $table->string('periode'); // Format: YYYY-MM (2024-01)
-            $table->integer('meteran_awal');
-            $table->integer('meteran_akhir');
-            $table->integer('pemakaian'); // meteran_akhir - meteran_awal
+            $table->unsignedInteger('meteran_awal');
+            $table->unsignedInteger('meteran_akhir');
+            $table->unsignedInteger('pemakaian'); // meteran_akhir - meteran_awal
             $table->decimal('tarif_per_m3', 10, 2);
             $table->decimal('jumlah_tagihan', 10, 2);
             $table->enum('status', ['belum_bayar', 'menunggu_konfirmasi', 'sudah_bayar'])->default('belum_bayar');
