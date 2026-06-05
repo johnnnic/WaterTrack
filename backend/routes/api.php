@@ -22,6 +22,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/pending-requests', [KasirController::class, 'pendingRequests']);
         Route::put('/bills/{bill}/confirm', [KasirController::class, 'confirmPayment']);
         Route::get('/payments', [KasirController::class, 'payments']);
+        Route::get('/payments/{payment}', [KasirController::class, 'showPayment']);
         Route::put('/payments/{payment}', [KasirController::class, 'updatePayment']);
         Route::delete('/payments/{payment}', [KasirController::class, 'deletePayment']);
     });

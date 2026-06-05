@@ -200,6 +200,10 @@ class KasirController extends Controller
         );
     }
 
+    public function showPayment(Payment $payment): JsonResponse {
+        return response()->json($payment->load(['bill.customer:id,nomor_langganan,nama', 'user:id,name']));
+    }
+
     public function updatePayment(Request $request, Payment $payment): JsonResponse
     {
         $request->validate([
