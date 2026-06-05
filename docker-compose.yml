@@ -1,0 +1,99 @@
+services:
+
+  # ── MySQL 8 ─────────────────────────────────────────────────────────────────
+  db:
+    image: mysql:8.0
+    container_name: watertrack-db
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: water_billing
+      MYSQL_USER: watertrack
+      MYSQL_PASSWORD: secret
+      MYSQL_ROOT_PASSWORD: rootsecret
+    volumes:
+      - db_data:/var/lib/mysql
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-prootsecret"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # ── Redis 7 ──────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: watertrack-redis
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+
+  # ── Laravel Backend (php artisan serve) ──────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    container_name: watertrack-backend
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env.docker
+    volumes:
+      - ./backend:/var/www/html
+      - backend_vendor:/var/www/html/vendor
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  # ── React + Vite Frontend (HMR aktif) ────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: watertrack-frontend
+    restart: unless-stopped
+    environment:
+      - VITE_API_BASE_URL=http://localhost:8000/api
+      - CHOKIDAR_USEPOLLING=true
+    volumes:
+      - ./frontend:/app
+      - frontend_node_modules:/app/node_modules
+    ports:
+      - "8080:8080"
+    depends_on:
+      - backend
+
+volumes:
+  db_data:
+  redis_data:
+  backend_vendor:
+  frontend_node_modules:
+
+# ─── Perintah Penting ──────────────────────────────────────────────────────────
+#
+# Pertama kali (semua developer):
+#   docker compose up -d --build
+#
+# Cek log:
+#   docker compose logs -f backend
+#   docker compose logs -f frontend
+#
+# Reset database + seed ulang:
+#   docker compose exec backend php artisan migrate:fresh --seed --force
+#
+# Update composer (setelah edit composer.json):
+#   docker compose exec backend composer install
+#
+# Update npm (setelah edit package.json):
+#   docker compose exec frontend npm install
+#
+# Akses:
+#   Frontend : http://localhost:8080
+#   Backend  : http://localhost:8000
+#   MySQL    : localhost:3306  user=watertrack  pass=secret  db=water_billing
+#   Artisan  : docker compose exec backend php artisan <command>
+# ──────────────────────────────────────────────────────────────────────────────
