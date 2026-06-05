@@ -51,7 +51,7 @@ class UserController extends Controller {
                 return User::create([
                     'name'        => $request->name,
                     'email'       => $request->email,
-                    'password'    => \Illuminate\Support\Facades\Hash::make($request->password),
+                    'password'    => $request->password, // hashed by User model cast
                     'role'        => 'klien',
                     'customer_id' => $customer->id,
                     // password_changed_at stays null → forced password change on first login
@@ -64,7 +64,7 @@ class UserController extends Controller {
         $user = User::create([
             'name'                => $request->name,
             'email'               => $request->email,
-            'password'            => \Illuminate\Support\Facades\Hash::make($request->password),
+            'password'            => $request->password, // hashed by User model cast
             'role'                => $request->role,
             'password_changed_at' => now(),
         ]);
@@ -83,7 +83,7 @@ class UserController extends Controller {
 
         $data = $request->only(['name', 'email', 'role']);
         if ($request->filled('password')) {
-            $data['password'] = \Illuminate\Support\Facades\Hash::make($request->password);
+            $data['password'] = $request->password; // hashed by User model cast
         }
         $user->update($data);
 

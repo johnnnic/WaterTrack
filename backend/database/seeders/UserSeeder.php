@@ -8,7 +8,7 @@ class UserSeeder extends Seeder {
         User::create([
             'name' => 'Admin WaterTrack',
             'email' => 'admin@watertrack.id',
-            'password' => bcrypt('password'),
+            'password' => 'password', // hashed by User model cast
             'role' => 'admin',
             'password_changed_at' => now(),
         ]);
