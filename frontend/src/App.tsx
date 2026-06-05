@@ -10,6 +10,11 @@ import { LoginPage } from "@/pages/LoginPage";
 import { DashboardPage } from "@/pages/DashboardPage";
 import NotFound from "./pages/NotFound";
 
+// Shared pages
+import { ChangePasswordPage } from "@/pages/ChangePasswordPage";
+import { UsersPage } from "@/pages/UsersPage";
+import { AuditLogPage } from "@/pages/AuditLogPage";
+
 // Admin Pages
 import { CustomersPage } from "@/pages/admin/CustomersPage";
 import { BillsPage } from "@/pages/admin/BillsPage";
@@ -19,6 +24,11 @@ import { SettingsPage } from "@/pages/admin/SettingsPage";
 // Kasir Pages
 import { CheckBillPage } from "@/pages/kasir/CheckBillPage";
 import { PaymentPage } from "@/pages/kasir/PaymentPage";
+import { PendingRequestsPage } from "@/pages/kasir/PendingRequestsPage";
+
+// Klien Pages
+import { MyProfilePage } from "@/pages/klien/MyProfilePage";
+import { MyBillsPage } from "@/pages/klien/MyBillsPage";
 
 const queryClient = new QueryClient();
 
@@ -32,50 +42,138 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route path="/login" element={<LoginPage />} />
-            <Route path="/unauthorized" element={<div className="min-h-screen flex items-center justify-center bg-background"><h1 className="text-2xl text-foreground">Akses Ditolak</h1></div>} />
-            
-            <Route path="/" element={
-              <ProtectedRoute>
-                <AppLayout />
-              </ProtectedRoute>
-            }>
+            <Route
+              path="/change-password"
+              element={
+                <ProtectedRoute>
+                  <ChangePasswordPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/unauthorized"
+              element={
+                <div className="min-h-screen flex items-center justify-center bg-background">
+                  <h1 className="text-2xl text-foreground">Akses Ditolak</h1>
+                </div>
+              }
+            />
+
+            <Route
+              path="/"
+              element={
+                <ProtectedRoute>
+                  <AppLayout />
+                </ProtectedRoute>
+              }
+            >
               <Route path="dashboard" element={<DashboardPage />} />
-              
-              {/* Admin Routes */}
-              <Route path="customers" element={
-                <ProtectedRoute allowedRoles={['admin', 'operator']}>
-                  <CustomersPage />
-                </ProtectedRoute>
-              } />
-              <Route path="bills" element={
-                <ProtectedRoute allowedRoles={['admin']}>
-                  <BillsPage />
-                </ProtectedRoute>
-              } />
-              <Route path="transactions" element={
-                <ProtectedRoute allowedRoles={['admin']}>
-                  <TransactionsPage />
-                </ProtectedRoute>
-              } />
-              <Route path="settings" element={
-                <ProtectedRoute allowedRoles={['admin']}>
-                  <SettingsPage />
-                </ProtectedRoute>
-              } />
-              
-              {/* Kasir Routes */}
-              <Route path="bills/check" element={
-                <ProtectedRoute allowedRoles={['kasir']}>
-                  <CheckBillPage />
-                </ProtectedRoute>
-              } />
-              <Route path="payments" element={
-                <ProtectedRoute allowedRoles={['kasir']}>
-                  <PaymentPage />
-                </ProtectedRoute>
-              } />
+
+              {/* Admin + Operator */}
+              <Route
+                path="users"
+                element={
+                  <ProtectedRoute allowedRoles={['admin', 'operator']}>
+                    <UsersPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="customers"
+                element={
+                  <ProtectedRoute allowedRoles={['admin', 'operator']}>
+                    <CustomersPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="bills"
+                element={
+                  <ProtectedRoute allowedRoles={['admin', 'operator']}>
+                    <BillsPage />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* Admin only */}
+              <Route
+                path="transactions"
+                element={
+                  <ProtectedRoute allowedRoles={['admin', 'kasir']}>
+                    <TransactionsPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="settings"
+                element={
+                  <ProtectedRoute allowedRoles={['admin']}>
+                    <SettingsPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="audit-logs"
+                element={
+                  <ProtectedRoute allowedRoles={['admin']}>
+                    <AuditLogPage />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* Kasir */}
+              <Route
+                path="bills/check"
+                element={
+                  <ProtectedRoute allowedRoles={['admin', 'kasir']}>
+                    <CheckBillPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="kasir/check"
+                element={
+                  <ProtectedRoute allowedRoles={['admin', 'kasir']}>
+                    <CheckBillPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="payments"
+                element={
+                  <ProtectedRoute allowedRoles={['admin', 'kasir']}>
+                    <PaymentPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="kasir/pending-requests"
+                element={
+                  <ProtectedRoute allowedRoles={['admin', 'kasir']}>
+                    <PendingRequestsPage />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* Klien */}
+              <Route
+                path="my-profile"
+                element={
+                  <ProtectedRoute allowedRoles={['klien']}>
+                    <MyProfilePage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="my-bills"
+                element={
+                  <ProtectedRoute allowedRoles={['klien']}>
+                    <MyBillsPage />
+                  </ProtectedRoute>
+                }
+              />
             </Route>
-            
+
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

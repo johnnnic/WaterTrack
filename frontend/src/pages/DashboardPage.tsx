@@ -2,6 +2,34 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import api from '@/lib/api';
+
+const KlienBanner = () => {
+  const [status, setStatus] = useState<string | null>(null);
+
+  useEffect(() => {
+    api.get('/klien/bills').then(({ data }) => {
+      const bills = data.data ?? data;
+      if (bills.length > 0) setStatus(bills[0].status);
+    }).catch(() => {});
+  }, []);
+
+  if (!status || status === 'sudah_bayar') return null;
+
+  if (status === 'menunggu_konfirmasi') {
+    return (
+      <div className="bg-blue-100 border border-blue-400 text-blue-800 px-4 py-3 rounded mb-6">
+        Permintaan pembayaran Anda sedang diproses kasir.
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-red-100 border border-red-400 text-red-800 px-4 py-3 rounded mb-6 flex justify-between items-center">
+      <span>Anda memiliki tagihan yang belum lunas. Segera ajukan pembayaran.</span>
+      <a href="/my-bills" className="underline font-medium ml-4">Lihat Tagihan</a>
+    </div>
+  );
+};
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Users,
@@ -422,6 +450,9 @@ export const DashboardPage: React.FC = () => {
               </span>
             </div>
           </div>
+
+          {/* Klien notification banner */}
+          {user?.role === 'klien' && <KlienBanner />}
 
           {/* Stats Cards */}
           <div className={`grid gap-6 ${user?.role === 'admin' ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-4' : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-4'}`}>
