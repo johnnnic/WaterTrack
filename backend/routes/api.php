@@ -7,7 +7,7 @@ use App\Http\Controllers\Api\KasirController;
 use App\Http\Controllers\Api\KlienController;
 use App\Http\Controllers\OperatorController;
 
-Route::post('/login', [AuthController::class, 'login']);
+Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:10,1');
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
@@ -42,6 +42,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/audit-logs', [\App\Http\Controllers\Api\Admin\AuditLogController::class, 'index']);
         Route::apiResource('/tariffs', \App\Http\Controllers\Api\Admin\TariffController::class);
         Route::post('/customers/import-csv', [\App\Http\Controllers\Api\Admin\CustomerController::class, 'importCsv']);
+        Route::post('/customers/import', [\App\Http\Controllers\Api\Admin\CustomerController::class, 'importJson']);
         Route::apiResource('/customers', \App\Http\Controllers\Api\Admin\CustomerController::class);
         Route::post('/bills/generate', [\App\Http\Controllers\Api\Admin\BillController::class, 'generateBills']);
         Route::apiResource('/bills', \App\Http\Controllers\Api\Admin\BillController::class);

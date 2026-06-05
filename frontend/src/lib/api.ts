@@ -22,20 +22,15 @@ api.interceptors.request.use(config => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    console.error('API Error:', error.response?.data);
-    
-    // Handle 401 Unauthorized errors (token expired/invalid)
     if (error.response?.status === 401) {
-      console.log('🚨 Unauthorized error detected, clearing auth data');
       localStorage.removeItem('water_billing_token');
       localStorage.removeItem('water_billing_user');
-      
-      // Redirect to login if not already there
+
       if (window.location.pathname !== '/login') {
         window.location.href = '/login';
       }
     }
-    
+
     return Promise.reject(error);
   }
 );

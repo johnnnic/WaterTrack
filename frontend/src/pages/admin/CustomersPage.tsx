@@ -13,7 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import api from '@/lib/api';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 
 interface Customer {
   id: number;
@@ -322,32 +322,31 @@ export const CustomersPage: React.FC = () => {
   };
 
   // Import Excel Functions
-  const downloadTemplate = () => {
-    const templateData = [
-      {
-        nomor_langganan: 'PLG001',
-        nama: 'Contoh Nama Pelanggan',
-        alamat: 'Jl. Contoh Alamat No. 123',
-        telepon: '081234567890',
-        status: 'aktif',
-        tarif_per_m3: 5000,
-        meteran_terakhir: 0
-      },
-      {
-        nomor_langganan: 'PLG002',
-        nama: 'Pelanggan Kedua',
-        alamat: 'Jl. Alamat Kedua No. 456',
-        telepon: '085678901234',
-        status: 'aktif',
-        tarif_per_m3: 7500,
-        meteran_terakhir: 100
-      }
+  const downloadTemplate = async () => {
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Template Import Pelanggan');
+    worksheet.columns = [
+      { header: 'nomor_langganan', key: 'nomor_langganan', width: 20 },
+      { header: 'nama', key: 'nama', width: 30 },
+      { header: 'alamat', key: 'alamat', width: 35 },
+      { header: 'telepon', key: 'telepon', width: 15 },
+      { header: 'status', key: 'status', width: 10 },
+      { header: 'tarif_per_m3', key: 'tarif_per_m3', width: 12 },
+      { header: 'meteran_terakhir', key: 'meteran_terakhir', width: 16 },
     ];
+    worksheet.addRow({ nomor_langganan: 'PLG001', nama: 'Contoh Nama Pelanggan', alamat: 'Jl. Contoh Alamat No. 123', telepon: '081234567890', status: 'aktif', tarif_per_m3: 5000, meteran_terakhir: 0 });
+    worksheet.addRow({ nomor_langganan: 'PLG002', nama: 'Pelanggan Kedua', alamat: 'Jl. Alamat Kedua No. 456', telepon: '085678901234', status: 'aktif', tarif_per_m3: 7500, meteran_terakhir: 100 });
 
-    const ws = XLSX.utils.json_to_sheet(templateData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Template Import Pelanggan');
-    XLSX.writeFile(wb, 'template_import_pelanggan.xlsx');
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'template_import_pelanggan.xlsx';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
 
     toast({
       title: "Template Downloaded",
@@ -414,23 +413,39 @@ export const CustomersPage: React.FC = () => {
     setImportFile(file);
 
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       try {
-        const data = new Uint8Array(e.target?.result as ArrayBuffer);
-        const workbook = XLSX.read(data, { type: 'array' });
-        const sheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[sheetName];
-        const jsonData = XLSX.utils.sheet_to_json(worksheet);
+        const buffer = e.target?.result as ArrayBuffer;
+        const workbook = new ExcelJS.Workbook();
+        await workbook.xlsx.load(buffer);
+        const worksheet = workbook.worksheets[0];
+
+        const headers: string[] = [];
+        const jsonData: Record<string, unknown>[] = [];
+        let isHeader = true;
+
+        worksheet.eachRow((row) => {
+          if (isHeader) {
+            row.eachCell((cell) => headers.push(String(cell.value ?? '')));
+            isHeader = false;
+          } else {
+            const rowData: Record<string, unknown> = {};
+            row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+              rowData[headers[colNumber - 1]] = cell.value;
+            });
+            jsonData.push(rowData);
+          }
+        });
 
         // Transform data to match expected format
-        const transformedData: ImportData[] = jsonData.map((row: any) => ({
-          nomor_langganan: row.nomor_langganan || row['Nomor Langganan'] || '',
-          nama: row.nama || row.Nama || '',
-          alamat: row.alamat || row.Alamat || '',
-          telepon: row.telepon || row.Telepon || '',
-          status: (row.status || row.Status || 'aktif').toLowerCase() as 'aktif' | 'nonaktif',
+        const transformedData: ImportData[] = jsonData.map((row) => ({
+          nomor_langganan: String(row.nomor_langganan || row['Nomor Langganan'] || ''),
+          nama: String(row.nama || row.Nama || ''),
+          alamat: String(row.alamat || row.Alamat || ''),
+          telepon: String(row.telepon || row.Telepon || ''),
+          status: (String(row.status || row.Status || 'aktif')).toLowerCase() as 'aktif' | 'nonaktif',
           tarif_per_m3: Number(row.tarif_per_m3 || row['Tarif per m3'] || row['Tarif per M3'] || 5000),
-          meteran_terakhir: Number(row.meteran_terakhir || row['Meteran Terakhir'] || 0)
+          meteran_terakhir: Number(row.meteran_terakhir || row['Meteran Terakhir'] || 0),
         }));
 
         const errors = validateImportData(transformedData);
@@ -449,7 +464,7 @@ export const CustomersPage: React.FC = () => {
             variant: "destructive",
           });
         }
-      } catch (error) {
+      } catch {
         toast({
           title: "Error",
           description: "Gagal membaca file Excel",
@@ -471,37 +486,23 @@ export const CustomersPage: React.FC = () => {
       return;
     }
 
-    console.log('🚀 Starting import process...');
-    console.log('📊 Import data:', importData);
-
     setImportLoading(true);
     try {
-      // Data sudah dalam format yang benar, langsung kirim ke backend
-      console.log('📤 Sending data to API...');
       const response = await api.post('/admin/customers/import', {
         customers: importData
       });
-
-      console.log('✅ Import response:', response.data);
 
       toast({
         title: "Import Berhasil",
         description: `${importData.length} pelanggan berhasil diimport`,
       });
 
-      // Reset import state
       setImportData([]);
       setImportErrors([]);
       setImportFile(null);
       setImportModalOpen(false);
-      
-      // Refresh customer list
-      console.log('🔄 Refreshing customer list...');
       await fetchCustomers();
-      console.log('✅ Customer list refreshed');
     } catch (error: any) {
-      console.error('❌ Import error:', error);
-      console.error('❌ Error response:', error.response?.data);
       
       toast({
         title: "Import Gagal",

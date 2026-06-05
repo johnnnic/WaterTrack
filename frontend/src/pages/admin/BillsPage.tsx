@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import api from '@/lib/api';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 
 interface Bill {
   id: number;
@@ -267,7 +267,7 @@ export const BillsPage: React.FC = () => {
   };
 
   // Export Excel Function
-  const exportToExcel = () => {
+  const exportToExcel = async () => {
     try {
       // Prepare data for export
       const exportData = filteredBills.map((bill, index) => ({
@@ -286,45 +286,45 @@ export const BillsPage: React.FC = () => {
         'Tanggal Dibuat': formatDate(bill.created_at),
       }));
 
-      // Create workbook and worksheet
-      const wb = XLSX.utils.book_new();
-      const ws = XLSX.utils.json_to_sheet(exportData);
-
-      // Set column widths
-      const colWidths = [
-        { wch: 5 },   // No
-        { wch: 10 },  // Periode
-        { wch: 15 },  // Nomor Pelanggan
-        { wch: 25 },  // Nama Pelanggan
-        { wch: 30 },  // Alamat
-        { wch: 12 },  // Meteran Awal
-        { wch: 12 },  // Meteran Akhir
-        { wch: 12 },  // Pemakaian
-        { wch: 15 },  // Tarif per m³
-        { wch: 15 },  // Jumlah Tagihan
-        { wch: 12 },  // Status
-        { wch: 18 },  // Tanggal Jatuh Tempo
-        { wch: 18 },  // Tanggal Dibuat
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet('Data Tagihan');
+      worksheet.columns = [
+        { header: 'No', key: 'No', width: 5 },
+        { header: 'Periode', key: 'Periode', width: 10 },
+        { header: 'Nomor Pelanggan', key: 'Nomor Pelanggan', width: 15 },
+        { header: 'Nama Pelanggan', key: 'Nama Pelanggan', width: 25 },
+        { header: 'Alamat', key: 'Alamat', width: 30 },
+        { header: 'Meteran Awal (m³)', key: 'Meteran Awal (m³)', width: 12 },
+        { header: 'Meteran Akhir (m³)', key: 'Meteran Akhir (m³)', width: 12 },
+        { header: 'Pemakaian (m³)', key: 'Pemakaian (m³)', width: 12 },
+        { header: 'Tarif per m³', key: 'Tarif per m³', width: 15 },
+        { header: 'Jumlah Tagihan', key: 'Jumlah Tagihan', width: 15 },
+        { header: 'Status', key: 'Status', width: 12 },
+        { header: 'Tanggal Jatuh Tempo', key: 'Tanggal Jatuh Tempo', width: 18 },
+        { header: 'Tanggal Dibuat', key: 'Tanggal Dibuat', width: 18 },
       ];
-      ws['!cols'] = colWidths;
+      exportData.forEach(row => worksheet.addRow(row));
 
-      // Add worksheet to workbook
-      XLSX.utils.book_append_sheet(wb, ws, 'Data Tagihan');
-
-      // Generate filename with current date
       const currentDate = new Date().toISOString().split('T')[0];
       const filename = `Data_Tagihan_${currentDate}.xlsx`;
 
-      // Save file
-      XLSX.writeFile(wb, filename);
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
 
       toast({
         title: "Berhasil",
         description: `Data berhasil diekspor ke file ${filename}`,
       });
 
-    } catch (error) {
-      console.error('Export error:', error);
+    } catch {
       toast({
         title: "Error",
         description: "Gagal mengekspor data ke Excel",

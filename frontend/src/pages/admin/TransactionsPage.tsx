@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import api from '@/lib/api';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 
 interface Payment {
   id: number;
@@ -90,7 +90,7 @@ export const TransactionsPage: React.FC = () => {
   };
 
   // Export Excel Function
-  const exportToExcel = () => {
+  const exportToExcel = async () => {
     try {
       const exportData = filteredPayments.map((payment, index) => ({
         'No': index + 1,
@@ -105,37 +105,42 @@ export const TransactionsPage: React.FC = () => {
         'Keterangan': payment.keterangan || '-',
       }));
 
-      const wb = XLSX.utils.book_new();
-      const ws = XLSX.utils.json_to_sheet(exportData);
-
-      const colWidths = [
-        { wch: 5 },   // No
-        { wch: 12 },  // Tanggal
-        { wch: 18 },  // Waktu
-        { wch: 15 },  // Nomor Pelanggan
-        { wch: 25 },  // Nama Pelanggan
-        { wch: 12 },  // Periode
-        { wch: 15 },  // Jumlah Bayar
-        { wch: 15 },  // Metode
-        { wch: 20 },  // Kasir
-        { wch: 25 },  // Keterangan
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet('Laporan Transaksi');
+      worksheet.columns = [
+        { header: 'No', key: 'No', width: 5 },
+        { header: 'Tanggal', key: 'Tanggal', width: 12 },
+        { header: 'Waktu', key: 'Waktu', width: 18 },
+        { header: 'Nomor Pelanggan', key: 'Nomor Pelanggan', width: 15 },
+        { header: 'Nama Pelanggan', key: 'Nama Pelanggan', width: 25 },
+        { header: 'Periode Tagihan', key: 'Periode Tagihan', width: 12 },
+        { header: 'Jumlah Bayar', key: 'Jumlah Bayar', width: 15 },
+        { header: 'Metode Pembayaran', key: 'Metode Pembayaran', width: 15 },
+        { header: 'Kasir', key: 'Kasir', width: 20 },
+        { header: 'Keterangan', key: 'Keterangan', width: 25 },
       ];
-      ws['!cols'] = colWidths;
-
-      XLSX.utils.book_append_sheet(wb, ws, 'Laporan Transaksi');
+      exportData.forEach(row => worksheet.addRow(row));
 
       const currentDate = new Date().toISOString().split('T')[0];
       const filename = `Laporan_Transaksi_${currentDate}.xlsx`;
 
-      XLSX.writeFile(wb, filename);
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
 
       toast({
         title: "Berhasil",
         description: `Laporan berhasil diekspor ke file ${filename}`,
       });
 
-    } catch (error) {
-      console.error('Export error:', error);
+    } catch {
       toast({
         title: "Error",
         description: "Gagal mengekspor laporan",

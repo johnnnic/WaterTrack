@@ -147,12 +147,57 @@ class CustomerController extends Controller
                     'tanggal_baca_terakhir' => now(),
                 ]);
                 $success++;
-            } catch (\Exception $e) {
-                $errors[] = "Baris {$row}: " . $e->getMessage();
+            } catch (\Exception) {
+                $errors[] = "Baris {$row}: Gagal menyimpan data.";
             }
         }
 
         fclose($handle);
+
+        return response()->json([
+            'berhasil' => $success,
+            'gagal'    => count($errors),
+            'errors'   => $errors,
+        ]);
+    }
+
+    /**
+     * Import customers from JSON payload (sent by frontend after parsing Excel)
+     */
+    public function importJson(Request $request): JsonResponse
+    {
+        $request->validate([
+            'customers'                        => 'required|array|min:1|max:500',
+            'customers.*.nomor_langganan'      => 'required|string|max:50',
+            'customers.*.nama'                 => 'required|string|max:255',
+            'customers.*.alamat'               => 'required|string',
+            'customers.*.telepon'              => 'nullable|string|max:20',
+            'customers.*.status'               => 'required|in:aktif,nonaktif',
+            'customers.*.tarif_per_m3'         => 'required|numeric|min:0',
+            'customers.*.meteran_terakhir'     => 'required|integer|min:0',
+        ]);
+
+        $success = 0;
+        $errors  = [];
+
+        foreach ($request->customers as $index => $row) {
+            $rowNum = $index + 2;
+            try {
+                Customer::create([
+                    'nomor_langganan'       => strtoupper(trim($row['nomor_langganan'])),
+                    'nama'                  => trim($row['nama']),
+                    'alamat'                => trim($row['alamat']),
+                    'telepon'               => trim($row['telepon'] ?? ''),
+                    'status'                => $row['status'],
+                    'tarif_per_m3'          => (float) $row['tarif_per_m3'],
+                    'meteran_terakhir'      => (int) $row['meteran_terakhir'],
+                    'tanggal_baca_terakhir' => now(),
+                ]);
+                $success++;
+            } catch (\Exception) {
+                $errors[] = "Baris {$rowNum}: Gagal menyimpan data.";
+            }
+        }
 
         return response()->json([
             'berhasil' => $success,
