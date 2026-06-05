@@ -17,7 +17,7 @@
 7. [Dev 3 — RDS + ElastiCache + Secrets Manager](#7-dev-3--rds--elasticache--secrets-manager)
 8. [Dev 4 — S3 + CloudFront + WAF](#8-dev-4--s3--cloudfront--waf)
 9. [Dev 5 — ECR + ECS + ALB + Route 53](#9-dev-5--ecr--ecs--alb--route-53)
-10. [GitHub Actions — Konfigurasi Secrets Repository](#10-github-actions--konfigurasi-secrets-repository)
+10. [GitHub Actions — CI/CD Pipeline ke ECR & ECS](#10-github-actions--cicd-pipeline-ke-ecr--ecs)
 11. [Migrasi Database Pertama Kali](#11-migrasi-database-pertama-kali)
 12. [CloudWatch Alarms + Budget Alert](#12-cloudwatch-alarms--budget-alert)
 13. [Checklist Pasca-Deploy](#13-checklist-pasca-deploy)
@@ -899,22 +899,260 @@ Jika sukses, beritahu tim: **"Gate 2 done."**
 
 ---
 
-## 10. GitHub Actions — Konfigurasi Secrets Repository
+## 10. GitHub Actions — CI/CD Pipeline ke ECR & ECS
 
-> **Dikerjakan oleh:** Dev 1 (setelah Gate 2)
+> **Dikerjakan oleh:** Dev 1 (setelah Gate 2 selesai)
+> **Prasyarat:** ECR repository dibuat (Dev 5), ECS Cluster + Service running (Dev 5), CloudFront + S3 siap (Dev 4), IAM OIDC role dibuat (Dev 1 — Bagian 5.4–5.5)
 
-1. **GitHub → Repository → Settings → Secrets and variables → Actions**
-2. **New repository secret** untuk setiap item:
+### 10.0 Konsistensi Nama Resource
 
-| Secret Name | Value |
-|-------------|-------|
-| `AWS_ROLE_ARN` | ARN `watertrack-github-actions-role` dari Shared Info Sheet |
-| `VITE_API_BASE_URL` | `https://api.yourdomain.com/api` |
-| `S3_FRONTEND_BUCKET` | `watertrack-frontend-prod` |
-| `CLOUDFRONT_DISTRIBUTION_ID` | Distribution ID dari Shared Info Sheet |
+File workflow `.github/workflows/deploy.yml` sudah ada di repository. Pastikan nama resource AWS yang dibuat di Console **persis sama** dengan konstanta di bagian `env:` pada file tersebut.
 
-3. Pastikan `.github/workflows/deploy.yml` sudah ada di repository.
-4. Test deploy: push perubahan kecil ke branch `main` → monitor **Actions tab** di GitHub.
+| Konstanta di `deploy.yml` | Nilai saat ini | Resource AWS yang harus sesuai |
+|---------------------------|---------------|-------------------------------|
+| `ECR_REPOSITORY` | `watertrack-api` | Nama ECR repository (Bagian 9.1) |
+| `ECS_CLUSTER` | `watertrack-cluster` | Nama ECS Cluster (Bagian 9.4) |
+| `ECS_SERVICE` | `watertrack-api-service` | Nama ECS Service (Bagian 9.8) |
+| `CONTAINER_NAME` | `watertrack-api` | Nama container di Task Definition (Bagian 9.7) |
+| `AWS_REGION` | `ap-southeast-3` | Region semua resource |
+
+> **Jika nama resource sudah terlanjur berbeda:** Edit bagian `env:` di `deploy.yml` untuk menyesuaikan, atau rename resource di Console. Jangan biarkan tidak konsisten — deploy akan gagal di step "Download current ECS task definition".
+
+### 10.1 Alur CI/CD
+
+```
+Push ke branch main
+       │
+       ▼
+┌──────────────────────────────────────────────────────────┐
+│                   GitHub Actions Trigger                  │
+│         on: push: branches: [main]                       │
+└─────────────────────┬────────────────────────────────────┘
+                      │  (kedua job jalan paralel)
+          ┌───────────┴───────────┐
+          ▼                       ▼
+┌─────────────────────┐ ┌────────────────────────┐
+│  Job: deploy-backend│ │  Job: deploy-frontend  │
+│                     │ │                        │
+│ 1. OIDC → AWS       │ │ 1. OIDC → AWS          │
+│ 2. ECR Login        │ │ 2. npm ci (Node 20)    │
+│ 3. docker build     │ │ 3. npm run build       │
+│    (backend/)       │ │    (VITE_API_BASE_URL) │
+│ 4. docker push      │ │ 4. aws s3 sync → S3    │
+│    tag: commit SHA  │ │ 5. CloudFront          │
+│ 5. Ambil task def   │ │    invalidation /*     │
+│    dari ECS         │ │                        │
+│ 6. Update image URI │ │                        │
+│ 7. Deploy ke ECS    │ │                        │
+│    (rolling update) │ │                        │
+└─────────────────────┘ └────────────────────────┘
+```
+
+### 10.2 Isi File `.github/workflows/deploy.yml`
+
+File ini sudah ada di repository. Berikut isi lengkapnya beserta penjelasan tiap bagian:
+
+```yaml
+name: Deploy to AWS
+
+on:
+  push:
+    branches: [main]   # Hanya trigger saat push/merge ke main
+
+env:
+  AWS_REGION: ap-southeast-3
+  ECR_REPOSITORY: watertrack-api          # Harus sama dengan nama ECR repo di Console
+  ECS_SERVICE: watertrack-api-service     # Harus sama dengan nama ECS Service
+  ECS_CLUSTER: watertrack-cluster         # Harus sama dengan nama ECS Cluster
+  CONTAINER_NAME: watertrack-api          # Harus sama dengan nama container di Task Definition
+
+permissions:
+  id-token: write   # WAJIB: izin GitHub minta OIDC token ke AWS
+  contents: read    # Izin baca isi repository
+
+jobs:
+  deploy-backend:
+    name: Deploy Backend (Laravel)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}   # ARN dari IAM role watertrack-github-actions-role
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, tag, and push Docker image to ECR
+        id: build-image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}     # Tag = commit hash, bukan "latest" — mudah rollback
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG backend/
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+      - name: Download current ECS task definition
+        run: |
+          aws ecs describe-task-definition \
+            --task-definition watertrack-api \    # Nama task definition family di ECS
+            --query taskDefinition \
+            > task-definition.json
+
+      - name: Update ECS task definition with new image
+        id: task-def
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: task-definition.json
+          container-name: ${{ env.CONTAINER_NAME }}
+          image: ${{ steps.build-image.outputs.image }}
+
+      - name: Deploy to ECS
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+        with:
+          task-definition: ${{ steps.task-def.outputs.task-definition }}
+          service: ${{ env.ECS_SERVICE }}
+          cluster: ${{ env.ECS_CLUSTER }}
+          wait-for-service-stability: true   # Tunggu hingga rolling update selesai sebelum job dinyatakan sukses
+
+  deploy-frontend:
+    name: Deploy Frontend (React SPA)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci   # ci = install deterministik dari package-lock.json (lebih cepat dari npm install)
+
+      - name: Build SPA
+        working-directory: frontend
+        env:
+          VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}   # Inject saat build, bukan runtime
+        run: npm run build
+
+      - name: Sync to S3
+        run: |
+          # File JS/CSS: cache 1 tahun (Vite sudah tambah content hash di nama file)
+          aws s3 sync frontend/dist/ s3://${{ secrets.S3_FRONTEND_BUCKET }}/ \
+            --delete \
+            --cache-control "public, max-age=31536000, immutable" \
+            --exclude "index.html"
+          # index.html: no-cache (agar browser selalu ambil versi terbaru)
+          aws s3 cp frontend/dist/index.html s3://${{ secrets.S3_FRONTEND_BUCKET }}/index.html \
+            --cache-control "no-cache, no-store, must-revalidate"
+
+      - name: Invalidate CloudFront cache
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }} \
+            --paths "/*"
+```
+
+### 10.3 Konfigurasi GitHub Repository Secrets
+
+1. Buka **GitHub → Repository → Settings → Secrets and variables → Actions**
+2. Klik **New repository secret** untuk setiap baris berikut:
+
+| Secret Name | Value | Dari mana |
+|-------------|-------|-----------|
+| `AWS_ROLE_ARN` | `arn:aws:iam::ACCOUNT_ID:role/watertrack-github-actions-role` | Shared Info Sheet → [DEV 1] |
+| `VITE_API_BASE_URL` | `https://api.yourdomain.com/api` | Domain dari Dev 2 + `/api` di akhir |
+| `S3_FRONTEND_BUCKET` | `watertrack-frontend-prod` | Shared Info Sheet → [DEV 4] |
+| `CLOUDFRONT_DISTRIBUTION_ID` | `EXXXXXXXXXXXXXXXXX` (format 14 karakter) | Shared Info Sheet → [DEV 4] |
+
+> **Verifikasi:** Setelah menambahkan, pastikan di halaman Secrets muncul 4 secret tanpa tanda error. Secret yang sudah disimpan tidak bisa dilihat lagi nilainya — jika salah input, delete dan buat ulang.
+
+### 10.4 Verifikasi Koneksi OIDC ke AWS
+
+Sebelum push ke `main` untuk pertama kali, pastikan:
+
+**1. OIDC Provider terdaftar:**
+- **IAM → Identity providers** — harus ada entry `token.actions.githubusercontent.com` dengan status **Active**
+
+**2. Trust policy role sudah sesuai repo:**
+- **IAM → Roles → watertrack-github-actions-role → Trust relationships**
+- Pastikan bagian `Condition` berisi nama repo yang benar:
+  ```json
+  "StringLike": {
+    "token.actions.githubusercontent.com:sub": "repo:YOUR_GITHUB_ORG/WaterTrack:ref:refs/heads/main"
+  }
+  ```
+- Ganti `YOUR_GITHUB_ORG/WaterTrack` dengan owner dan nama repo GitHub yang sebenarnya (perhatikan huruf besar/kecil — harus persis sama)
+
+**3. Permissions role mencakup ECR:**
+- **IAM → Roles → watertrack-github-actions-role → Permissions → WaterTrackGitHubActionsPolicy**
+- Pastikan ada action `ecr:GetAuthorizationToken` dan `ecr:PutImage` (sudah diset di Bagian 5.5)
+
+### 10.5 Trigger dan Monitor Deploy
+
+```bash
+# Dari local repository — push ke main untuk trigger pipeline
+git push origin main
+```
+
+Monitor di **GitHub → Repository → Actions**:
+
+| Status | Arti | Tindakan |
+|--------|------|---------|
+| Kuning (running) | Pipeline sedang berjalan | Tunggu, klik untuk lihat live log |
+| Hijau (success) | Semua job berhasil | Cek aplikasi di `https://yourdomain.com` |
+| Merah (failure) | Ada step yang gagal | Klik job → expand step merah → baca error |
+
+Durasi normal:
+- `deploy-backend`: 4–8 menit (docker build + ECS rolling update)
+- `deploy-frontend`: 2–4 menit (npm build + S3 sync)
+
+### 10.6 Rollback
+
+**Via ECS Console (rollback backend):**
+1. **ECS → Task Definitions → watertrack-api** — pilih revision sebelumnya
+2. Klik **Deploy → Update Service**
+3. Pilih cluster `watertrack-cluster`, service `watertrack-api-service` → **Update**
+
+**Via GitHub (re-deploy commit lama):**
+```bash
+git revert HEAD       # Buat commit revert
+git push origin main  # Trigger GitHub Actions dengan kode sebelumnya
+```
+
+**Via S3 (rollback frontend):**
+- Karena S3 sync menggunakan `--delete`, tidak ada versi lama di S3.
+- Gunakan opsi revert di GitHub agar npm build ulang dan re-deploy.
+
+### 10.7 Troubleshooting Umum
+
+| Error | Penyebab | Solusi |
+|-------|----------|--------|
+| `Not authorized to perform sts:AssumeRoleWithWebIdentity` | OIDC provider belum terdaftar atau `sub` di Trust policy tidak sesuai nama repo | Cek **IAM → Identity providers** dan **Trust relationships** di role |
+| `RepositoryNotFoundException: watertrack-api` | Nama ECR di `env.ECR_REPOSITORY` tidak cocok dengan yang dibuat di Console | Sesuaikan `ECR_REPOSITORY` di `deploy.yml` atau rename ECR repo |
+| `Service not found: watertrack-api-service` | Nama ECS service tidak cocok | Sesuaikan `ECS_SERVICE` di `deploy.yml` |
+| `container name ... not found in task definition` | `CONTAINER_NAME` di workflow ≠ nama container di Task Definition | Edit Task Definition di ECS atau ubah `CONTAINER_NAME` |
+| `AccessDeniedException: ecr:GetAuthorizationToken` | Policy IAM role belum mencakup ECR | Tambah permission di `WaterTrackGitHubActionsPolicy` (Bagian 5.5) |
+| Frontend deploy sukses tapi site tidak update | CloudFront masih cache konten lama | Tunggu 5–10 menit; atau buka **CloudFront → Invalidations** cek status |
+| `npm ci` gagal karena `package-lock.json` tidak ada | `package-lock.json` belum di-commit | Jalankan `npm install` lokal lalu commit `package-lock.json` |
 
 ---
 
