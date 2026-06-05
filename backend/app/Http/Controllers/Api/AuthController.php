@@ -65,7 +65,7 @@ class AuthController extends Controller {
         }
 
         $user->update([
-            'password'            => $request->new_password,
+            'password'            => Hash::make($request->new_password),
             'password_changed_at' => now(),
         ]);
 
