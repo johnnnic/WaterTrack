@@ -58,34 +58,34 @@ Region: ap-southeast-3
 
 --- [DEV 1] IAM ---
 AWS Account ID:              ____________________________
-ARN ECS Execution Role:      arn:aws:iam::ACCOUNT:role/watertrack-ecs-execution-role
-ARN ECS Task Role:           arn:aws:iam::ACCOUNT:role/watertrack-ecs-task-role
-ARN GitHub Actions Role:     arn:aws:iam::ACCOUNT:role/watertrack-github-actions-role
+ARN ECS Execution Role:      arn:aws:iam::775755739096:role/watertrack-ecs-execution-role
+ARN ECS Task Role:           arn:aws:iam::775755739096:role/watertrack-ecs-task-role
+ARN GitHub Actions Role:     arn:aws:iam::775755739096:role/watertrack-github-actions-role
 IAM User Dev 2 (temp):       ____________________________
 IAM User Dev 3 (temp):       ____________________________
 IAM User Dev 4 (temp):       ____________________________
 IAM User Dev 5 (temp):       ____________________________
 
 --- [DEV 2] VPC & NETWORK ---
-VPC ID:                      vpc-____________________
-Public Subnet AZ-a ID:       subnet-_________________ (10.0.1.0/24)
-Public Subnet AZ-b ID:       subnet-_________________ (10.0.2.0/24)
-Private Subnet AZ-a ID:      subnet-_________________ (10.0.11.0/24)
-Private Subnet AZ-b ID:      subnet-_________________ (10.0.12.0/24)
-SG ALB ID:                   sg-_____________________ (alb-sg)
-SG ECS ID:                   sg-_____________________ (ecs-sg)
-SG RDS ID:                   sg-_____________________ (rds-sg)
-SG Redis ID:                 sg-_____________________ (redis-sg)
-ACM Certificate ARN (ap-southeast-3):  arn:aws:acm:ap-southeast-3:ACCOUNT:certificate/____
-ACM Certificate ARN (us-east-1):       arn:aws:acm:us-east-1:ACCOUNT:certificate/____
+VPC ID:                      vpc-06717718b29f964c3
+Public Subnet AZ-a ID:       subnet-0e6e9a0dc3899d07c (10.0.16.0/20)
+Public Subnet AZ-b ID:       subnet-0b3fafa6d3535e223 (10.0.2.0/24)
+Private Subnet AZ-a ID:      subnet-07ea5795e74af67c8 (10.0.128.0/20)
+Private Subnet AZ-b ID:      subnet-004e9a679b0d2deb5 (10.0.144.0/20)
+SG ALB ID:                   sg-0717a87255858c55e     (alb-sg)
+SG ECS ID:                   sg-0b1fea5f39a256919     (ecs-sg)
+SG RDS ID:                   sg-07a0dce9ebea074a0     (rds-sg)
+SG Redis ID:                 sg-0df045422dc4ad20d     (redis-sg)
+ACM Certificate ARN (ap-southeast-3):  arn:aws:acm:ap-southeast-3:775755739096:certificate/7c115b03-02e3-4388-960a-98baa73c2dc6
+ACM Certificate ARN (us-east-1):       arn:aws:acm:us-east-1:775755739096:certificate/f6c80578-ebe8-408e-bd13-b8634f24fda6
 
 --- [DEV 3] DATABASE & SECRETS ---
-RDS Endpoint:                ______________________________.rds.amazonaws.com
-ElastiCache Endpoint:        ______________________________.cache.amazonaws.com:6379
-Secret ARN APP_KEY:          arn:aws:secretsmanager:ap-southeast-3:ACCOUNT:secret:watertrack/app-key-____
-Secret ARN DB_PASSWORD:      arn:aws:secretsmanager:ap-southeast-3:ACCOUNT:secret:watertrack/db-password-____
-Secret ARN DB_HOST:          arn:aws:secretsmanager:ap-southeast-3:ACCOUNT:secret:watertrack/db-host-____
-Secret ARN REDIS_HOST:       arn:aws:secretsmanager:ap-southeast-3:ACCOUNT:secret:watertrack/redis-host-____
+RDS Endpoint:                watertrack-db-prod.c94gy0yacjro.ap-southeast-3.rds.amazonaws.com
+ElastiCache Endpoint:        clustercfg.watertrack-redis-prod.hxtqnn.apse3.cache.amazonaws.com:6379
+Secret ARN APP_KEY:          arn:aws:secretsmanager:ap-southeast-3:775755739096:secret:watertrack/app-key-mxSzGu
+Secret ARN DB_PASSWORD:      arn:aws:secretsmanager:ap-southeast-3:775755739096:secret:watertrack/db-password-q8hwYQ
+Secret ARN DB_HOST:          arn:aws:secretsmanager:ap-southeast-3:775755739096:secret:watertrack/db-host-4Fvid5
+Secret ARN REDIS_HOST:       arn:aws:secretsmanager:ap-southeast-3:775755739096:secret:watertrack/redis-host-SGM4I3
 
 --- [DEV 4] FRONTEND & CDN ---
 S3 Bucket Frontend:          watertrack-frontend-prod
@@ -177,20 +177,78 @@ Route 53 Hosted Zone ID:     Z____________________
 
 ### 5.1 Buat IAM User untuk Tim
 
+> **Prinsip least privilege:** Setiap user hanya diberi permission yang sesuai dengan workstream-nya (bukan `AdministratorAccess`) — agar blast radius tetap kecil bila kredensial bocor, dan agar setiap developer terbiasa dengan permission yang akan dipakai di production.
+
 1. Buka **AWS Console → IAM → Users → Create user**
 2. Buat 4 user dengan nama: `dev2-network`, `dev3-database`, `dev4-frontend`, `dev5-platform`
-3. Untuk setiap user:
+3. Untuk setiap user, isi bagian dasar yang sama:
    - **User name:** (sesuai di atas)
    - **Provide user access to the AWS Management Console:** centang
    - **Console password:** Auto-generated (catat dan kirim ke developer secara aman)
    - **Users must create a new password at next sign-in:** centang
-   - **Permissions:** Attach policies directly → pilih `AdministratorAccess` (sementara, untuk setup awal)
+4. Pada step **Permissions → Attach policies directly**, pilih AWS managed policy sesuai tabel berikut (bukan `AdministratorAccess`):
 
-   > **Catatan Keamanan:** Setelah seluruh infrastruktur selesai, hapus `AdministratorAccess` dan ganti dengan policy yang lebih terbatas.
+| User | AWS Managed Policy yang di-attach | Alasan |
+|------|-----------------------------------|--------|
+| `dev2-network` | `AmazonVPCFullAccess` | Membuat VPC, subnet, route table, security group ([Bagian 6](#6-dev-2--vpc--security-groups--acm)) |
+| | `AWSCertificateManagerFullAccess` | Request & kelola sertifikat ACM (ap-southeast-3 dan us-east-1) |
+| | `AmazonRoute53FullAccess` | Membuat DNS validation record (CNAME) untuk ACM via tombol "Create records in Route 53" |
+| `dev3-database` | `AmazonRDSFullAccess` | Membuat & kelola RDS instance, subnet group ([Bagian 7](#7-dev-3--rds--elasticache--secrets-manager)) |
+| | `AmazonElastiCacheFullAccess` | Membuat & kelola ElastiCache Redis cluster + subnet group |
+| | `SecretsManagerReadWrite` | Membuat 4 secret (`app-key`, `db-password`, `db-host`, `redis-host`) |
+| `dev4-frontend` | `AmazonS3FullAccess` | Membuat & kelola bucket frontend dan uploads ([Bagian 8](#8-dev-4--s3--cloudfront--waf)) |
+| | `CloudFrontFullAccess` | Membuat distribution, OAC, custom error pages |
+| | `AWSWAFFullAccess` | Membuat Web ACL dan asosiasikan ke CloudFront (region us-east-1) |
+| `dev5-platform` | `AmazonEC2ContainerRegistryFullAccess` | Membuat ECR repository ([Bagian 9](#9-dev-5--ecr--ecs--alb--route-53)) |
+| | `AmazonECS_FullAccess` | Membuat ECS cluster, task definition, service, auto scaling |
+| | `ElasticLoadBalancingFullAccess` | Membuat Target Group, ALB, listener |
+| | `AmazonRoute53FullAccess` | Membuat record `api`, root domain, dan `www` |
+| | `CloudWatchLogsFullAccess` | Membuat log group `/ecs/watertrack-backend` dan melihat log task |
+| | `AmazonVPCReadOnlyAccess` | Memilih VPC/Subnet/Security Group yang sudah dibuat Dev 2 saat membuat ALB & ECS Service |
 
-4. Kirim ke masing-masing developer:
+5. Selain managed policy di atas, **dev3-database** dan **dev5-platform** butuh izin tambahan yang tidak tercakup managed policy manapun — buat sebagai **inline policy** (tab JSON) langsung pada masing-masing user:
+
+   **Inline policy untuk `dev3-database`** — dibutuhkan di [Bagian 7.5](#75-beri-permission-ke-ecs-execution-role) untuk menempelkan inline policy `WaterTrackSecretsAccess` pada role `watertrack-ecs-execution-role`:
+   - **Policy name:** `WaterTrackDev3RoleEdit`
+   ```json
+   {
+     "Version": "2012-10-17",
+     "Statement": [
+       {
+         "Effect": "Allow",
+         "Action": ["iam:GetRole", "iam:GetRolePolicy", "iam:PutRolePolicy"],
+         "Resource": "arn:aws:iam::ACCOUNT_ID:role/watertrack-ecs-execution-role"
+       }
+     ]
+   }
+   ```
+   > Ganti `ACCOUNT_ID` dengan AWS Account ID dari Shared Info Sheet.
+
+   **Inline policy untuk `dev5-platform`** — dibutuhkan di [Bagian 9.7](#97-buat-ecs-task-definition) (`iam:PassRole` adalah syarat wajib ECS Console saat memilih Task Role / Task Execution Role):
+   - **Policy name:** `WaterTrackDev5PassRole`
+   ```json
+   {
+     "Version": "2012-10-17",
+     "Statement": [
+       {
+         "Effect": "Allow",
+         "Action": "iam:PassRole",
+         "Resource": [
+           "arn:aws:iam::ACCOUNT_ID:role/watertrack-ecs-execution-role",
+           "arn:aws:iam::ACCOUNT_ID:role/watertrack-ecs-task-role"
+         ]
+       }
+     ]
+   }
+   ```
+   > Ganti `ACCOUNT_ID` dengan AWS Account ID dari Shared Info Sheet.
+
+   > **Catatan Keamanan:** Inline policy di atas sengaja dibatasi (`Resource`) hanya ke ARN role spesifik milik proyek WaterTrack — bukan `Resource: "*"` — sehingga user tidak bisa pass-role atau mengubah role IAM lain di akun.
+
+6. Kirim ke masing-masing developer:
    - URL Sign-in: `https://ACCOUNT_ID.signin.aws.amazon.com/console`
    - Username dan password sementara
+   - Daftar permission yang melekat pada akunnya (agar tahu batasan dan tidak heran bila ada aksi yang ditolak `AccessDenied`)
 
 ### 5.2 Buat IAM Role: `watertrack-ecs-execution-role`
 
@@ -874,6 +932,7 @@ Tunggu hingga 2/2 tasks berstatus **Running**.
 
 1. **Route 53 → Hosted zones → pilih zona domain**
    - Jika belum ada: **Create hosted zone**, masukkan domain, pilih Public. Salin nameserver ke registrar domain.
+   - Sudah ada dengan domain aftaza.dev
 
 2. **Record API (backend):**
    - **Create record** | Name: `api` | Type: A | Alias: on
@@ -1243,7 +1302,7 @@ git push origin main  # Trigger GitHub Actions dengan kode sebelumnya
 - [ ] WAF terhubung ke CloudFront
 
 ### Cleanup Setelah Semua Selesai
-- [ ] Hapus `AdministratorAccess` dari IAM user dev2–dev5
+- [ ] Review permission IAM user dev2–dev5 — lepas managed policy yang sudah tidak relevan pasca-setup awal (mis. `AmazonVPCFullAccess` di `dev2-network` setelah VPC tidak lagi sering diubah), sisakan hanya yang dibutuhkan untuk operasional rutin
 - [ ] Verifikasi tidak ada SG yang buka port ke `0.0.0.0/0` selain alb-sg (80/443)
 - [ ] Aktifkan AWS CloudTrail untuk audit logging
 
