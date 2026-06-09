@@ -90,9 +90,9 @@ Secret ARN REDIS_HOST:       arn:aws:secretsmanager:ap-southeast-3:775755739096:
 --- [DEV 4] FRONTEND & CDN ---
 S3 Bucket Frontend:          watertrack-frontend-prod
 S3 Bucket Uploads:           watertrack-uploads-prod
-CloudFront Distribution ID:  E____________________
-CloudFront Domain:           ______________________.cloudfront.net
-WAF Web ACL ARN:             arn:aws:wafv2:us-east-1:ACCOUNT:global/webacl/watertrack-waf/____
+CloudFront Distribution ID:  E1C3FJ11UUAQM4
+CloudFront Domain:           d56pe38f7mqzq.cloudfront.net
+WAF Web ACL ARN:             arn:aws:wafv2:us-east-1:775755739096:global/webacl/CreatedByCloudFront-0f909bf0/80e32927-d9d5-4619-89c7-17d6f9ea40c1
 
 --- [DEV 5] PLATFORM ---
 ECR Repository URI:          ACCOUNT.dkr.ecr.ap-southeast-3.amazonaws.com/watertrack-backend
