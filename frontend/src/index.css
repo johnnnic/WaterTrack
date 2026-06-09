@@ -87,3 +87,28 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Custom Scrollbar — Dark Gold Theme */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(51 100% 50% / 0.45);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(51 100% 50% / 0.75);
+}
+
+/* Firefox */
+html {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(51 100% 50% / 0.45) transparent;
+}

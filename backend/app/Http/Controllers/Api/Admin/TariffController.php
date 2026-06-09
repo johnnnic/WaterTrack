@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Customer;
 use App\Models\Tariff;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
@@ -26,7 +27,6 @@ class TariffController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'golongan' => 'required|string|max:255',
-            'daya_listrik' => 'nullable|string|max:255',
             'harga_per_m3' => 'required|numeric|min:0',
         ]);
 
@@ -54,7 +54,6 @@ class TariffController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'golongan' => 'sometimes|required|string|max:255',
-            'daya_listrik' => 'nullable|string|max:255',
             'harga_per_m3' => 'sometimes|required|numeric|min:0',
         ]);
 
@@ -62,8 +61,12 @@ class TariffController extends Controller
             return response()->json($validator->errors(), 422);
         }
 
-        $tariff->update($validator->validated());
-
+        $data = $validator->validated();
+        if (isset($data['harga_per_m3']) && bccomp((string) $data['harga_per_m3'], (string) $tariff->harga_per_m3, 2) !== 0) {
+            Customer::where('tariff_id', $tariff->id)
+                ->update(['tarif_per_m3' => $data['harga_per_m3']]);
+        }
+        $tariff->update($data);
         return response()->json($tariff);
     }
 

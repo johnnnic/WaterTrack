@@ -17,7 +17,8 @@ class Bill extends Model
         'tarif_per_m3',
         'jumlah_tagihan',
         'status',
-        'tanggal_jatuh_tempo'
+        'tanggal_jatuh_tempo',
+        'requested_metode_pembayaran'
     ];
 
     protected $casts = [
@@ -39,5 +40,9 @@ class Bill extends Model
     public function isPaid(): bool
     {
         return $this->status === 'sudah_bayar';
+    }
+
+    public function isPending(): bool {
+        return $this->status === 'menunggu_konfirmasi';
     }
 }

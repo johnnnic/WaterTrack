@@ -1,0 +1,27 @@
+FROM php:8.2-fpm-alpine
+
+# install-php-extensions uses pre-compiled binaries on Alpine — much faster than pecl compile
+COPY --from=mlocati/php-extension-installer:2 /usr/bin/install-php-extensions /usr/bin/
+
+RUN install-php-extensions \
+    pdo_mysql \
+    mbstring \
+    exif \
+    pcntl \
+    bcmath \
+    gd \
+    zip \
+    redis \
+    opcache
+
+COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
+
+WORKDIR /var/www/html
+
+# Salin entrypoint ke path di luar mount volume agar tetap tersedia saat volume di-mount
+COPY docker/entrypoint.dev.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
+EXPOSE 8000
+
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]

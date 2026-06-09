@@ -17,7 +17,7 @@ class BillController extends Controller
     public function index(): JsonResponse
     {
         $bills = Bill::with(['customer' => function ($query) {
-            $query->select('id', 'nomor_langganan', 'nama', 'alamat');
+            $query->select('id', 'id_klien', 'nama', 'alamat');
         }])
         ->latest()
         ->paginate(15);
@@ -76,7 +76,7 @@ class BillController extends Controller
             'meteran_akhir' => 'required|integer|min:0',
             'tarif_per_m3' => 'required|numeric|min:0',
             'tanggal_jatuh_tempo' => 'required|date',
-            'status' => 'required|in:belum_bayar,sudah_bayar',
+            'status' => 'required|in:belum_bayar,menunggu_konfirmasi,sudah_bayar',
         ]);
 
         if ($validator->fails()) {

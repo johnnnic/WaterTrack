@@ -2,21 +2,18 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Tariff extends Model
 {
-    use HasFactory;
-
-    /**
-     * The attributes that are mass assignable.
-     *
-     * @var array<int, string>
-     */
     protected $fillable = [
         'golongan',
-        'daya_listrik',
         'harga_per_m3',
     ];
+
+    public function customers(): HasMany
+    {
+        return $this->hasMany(\App\Models\Customer::class);
+    }
 }
