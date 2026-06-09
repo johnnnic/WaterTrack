@@ -4,6 +4,7 @@ FROM php:8.2-fpm-alpine
 RUN apk add --no-cache \
     libpng-dev \
     libzip-dev \
+    oniguruma-dev \
     zip \
     unzip \
     curl \
