@@ -491,7 +491,7 @@ export const TransactionsPage: React.FC = () => {
 
       {/* Transaction Detail Modal */}
       <Dialog open={detailModalOpen} onOpenChange={setDetailModalOpen}>
-        <DialogContent className="sm:max-w-[600px]">
+        <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Detail Transaksi</DialogTitle>
             <DialogDescription>
@@ -567,7 +567,7 @@ export const TransactionsPage: React.FC = () => {
 
       {/* Filter Modal */}
       <Dialog open={filterModalOpen} onOpenChange={setFilterModalOpen}>
-        <DialogContent className="sm:max-w-[400px]">
+        <DialogContent className="sm:max-w-[400px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Filter Lanjutan</DialogTitle>
             <DialogDescription>

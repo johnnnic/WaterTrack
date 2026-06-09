@@ -695,7 +695,7 @@ export const CustomersPage: React.FC = () => {
 
       {/* Edit Customer Modal */}
       <Dialog open={editModalOpen} onOpenChange={setEditModalOpen}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Pelanggan</DialogTitle>
             <DialogDescription>
@@ -830,7 +830,7 @@ export const CustomersPage: React.FC = () => {
 
       {/* Add Customer Modal */}
       <Dialog open={addModalOpen} onOpenChange={setAddModalOpen}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Tambah Pelanggan Baru</DialogTitle>
             <DialogDescription>
@@ -965,7 +965,7 @@ export const CustomersPage: React.FC = () => {
 
       {/* Import Excel Modal */}
       <Dialog open={importModalOpen} onOpenChange={setImportModalOpen}>
-        <DialogContent className="max-w-4xl">
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <FileSpreadsheet className="h-5 w-5 text-gold" />

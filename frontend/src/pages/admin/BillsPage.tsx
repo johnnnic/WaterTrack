@@ -570,7 +570,7 @@ export const BillsPage: React.FC = () => {
 
       {/* Generate Bill Modal */}
       <Dialog open={generateModalOpen} onOpenChange={setGenerateModalOpen}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Generate Tagihan Baru</DialogTitle>
             <DialogDescription>
@@ -707,7 +707,7 @@ export const BillsPage: React.FC = () => {
 
       {/* Bill Detail Modal */}
       <Dialog open={detailModalOpen} onOpenChange={setDetailModalOpen}>
-        <DialogContent className="sm:max-w-[600px]">
+        <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Detail Tagihan</DialogTitle>
             <DialogDescription>

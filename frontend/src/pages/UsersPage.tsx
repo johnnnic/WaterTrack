@@ -154,7 +154,7 @@ export const UsersPage = () => {
       )}
 
       <Dialog open={showForm} onOpenChange={setShowForm}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editUser ? 'Edit User' : 'Tambah User'}</DialogTitle>
           </DialogHeader>

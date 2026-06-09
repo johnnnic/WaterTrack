@@ -118,7 +118,7 @@ export const CheckBillPage: React.FC = () => {
     }
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
+  const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       cekTagihan();
     }
@@ -174,7 +174,7 @@ export const CheckBillPage: React.FC = () => {
                 id="nomor_pelanggan"
                 value={nomorPelanggan}
                 onChange={(e) => setNomorPelanggan(e.target.value)}
-                onKeyPress={handleKeyPress}
+                onKeyDown={handleKeyDown}
                 placeholder="Masukkan nomor pelanggan (PLG001)"
                 className="flex-1"
               />
