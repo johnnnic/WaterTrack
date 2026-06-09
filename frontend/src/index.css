@@ -4,11 +4,11 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Water Billing App - Dark Gold Theme Design System */
+/* WaterTrack - Dark Gold Theme Design System */
 
 @layer base {
   :root {
-    /* Dark Gold Theme - Water Billing App */
+    /* Dark Gold Theme - WaterTrack */
     --background: 0 0% 5.5%;        /* #0e0e0e - Deep Black */
     --foreground: 0 0% 100%;        /* #ffffff - Pure White */
 
