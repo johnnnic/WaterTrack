@@ -100,7 +100,7 @@ class DashboardController extends Controller
                         'type' => 'customer',
                         'action' => 'Pelanggan baru ditambahkan',
                         'customer' => $customer->nama,
-                        'amount' => 'ID: ' . $customer->nomor_langganan,
+                        'amount' => 'ID: KLN-' . $customer->id_klien,
                         'time' => $customer->created_at->diffForHumans(),
                         'date' => $customer->created_at,
                     ];

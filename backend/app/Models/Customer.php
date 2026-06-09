@@ -10,6 +10,7 @@ class Customer extends Model
 {
     protected $fillable = [
         'id_klien',
+        'tariff_id',
         'nama',
         'alamat',
         'telepon',
@@ -32,6 +33,11 @@ class Customer extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class, 'id_klien');
+    }
+
+    public function tariff(): BelongsTo
+    {
+        return $this->belongsTo(\App\Models\Tariff::class);
     }
 
     public function getTagihanTerakhir()

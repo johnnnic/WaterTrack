@@ -3,6 +3,7 @@ namespace App\Http\Controllers\Api\Operator;
 
 use App\Http\Controllers\Controller;
 use App\Models\Customer;
+use App\Models\Tariff;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -28,12 +29,17 @@ class UserController extends Controller {
             'password'     => 'required|min:8',
             'alamat'       => 'required|string',
             'telepon'      => 'nullable|string',
-            'tarif_per_m3' => 'required|numeric|min:0',
+            'tariff_id'    => 'required|exists:tariffs,id',
             'meteran_awal' => 'required|integer|min:0',
         ]);
         if ($v->fails()) return response()->json(['errors' => $v->errors()], 422);
 
-        $user = DB::transaction(function () use ($request) {
+        $tariff = Tariff::find($request->tariff_id);
+        if (!$tariff) {
+            return response()->json(['message' => 'Tarif tidak ditemukan.'], 422);
+        }
+
+        $user = DB::transaction(function () use ($request, $tariff) {
             $user = User::create([
                 'name'     => $request->name,
                 'email'    => $request->email,
@@ -47,7 +53,8 @@ class UserController extends Controller {
                 'alamat'                => $request->alamat,
                 'telepon'               => $request->telepon,
                 'status'                => 'aktif',
-                'tarif_per_m3'          => $request->tarif_per_m3,
+                'tariff_id'             => $tariff->id,
+                'tarif_per_m3'          => $tariff->harga_per_m3,
                 'meteran_terakhir'      => $request->meteran_awal,
                 'tanggal_baca_terakhir' => now(),
             ]);

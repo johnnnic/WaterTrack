@@ -34,6 +34,7 @@ class CustomerController extends Controller
             'tarif_per_m3'          => 'sometimes|required|numeric|min:0',
             'meteran_terakhir'      => 'sometimes|required|integer|min:0',
             'tanggal_baca_terakhir' => 'nullable|date',
+            'tariff_id'             => 'nullable|exists:tariffs,id',
         ]);
 
         if ($validator->fails()) {
@@ -43,7 +44,16 @@ class CustomerController extends Controller
             ], 422);
         }
 
-        $customer->update($validator->validated());
+        $data = $validator->validated();
+        if (!empty($data['tariff_id'])) {
+            $tariff = \App\Models\Tariff::find($data['tariff_id']);
+            if ($tariff) {
+                $data['tarif_per_m3'] = $tariff->harga_per_m3;
+            }
+        }
+        // When tariff_id is null (unlink), tarif_per_m3 retains its last known value intentionally —
+        // existing bill calculations stay valid until a new tariff is assigned.
+        $customer->update($data);
 
         return response()->json($customer->load('user:id,name,email'));
     }

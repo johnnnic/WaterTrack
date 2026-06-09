@@ -12,12 +12,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 
 interface UserWithCustomer extends User {
-  customer?: { id_klien: number; nama: string; alamat: string } | null;
+  customer?: { id_klien: number; nama: string; alamat: string; tariff_id?: number } | null;
 }
+
+const formatRupiah = (n: number) =>
+  new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n);
 
 const EMPTY_FORM = {
   name: '', email: '', password: '', role: 'klien',
-  alamat: '', telepon: '', tarif_per_m3: '', meteran_awal: '',
+  alamat: '', telepon: '', tariff_id: '', meteran_awal: '',
 };
 
 export const UsersPage = () => {
@@ -31,6 +34,7 @@ export const UsersPage = () => {
   const [showForm, setShowForm] = useState(false);
   const [editUser, setEditUser] = useState<UserWithCustomer | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
+  const [tariffs, setTariffs] = useState<{ id: number; golongan: string; harga_per_m3: number }[]>([]);
 
   const fetchUsers = async () => {
     try {
@@ -40,7 +44,10 @@ export const UsersPage = () => {
     } finally { setLoading(false); }
   };
 
-  useEffect(() => { fetchUsers(); }, []);
+  useEffect(() => {
+    fetchUsers();
+    api.get('/tariffs').then(r => setTariffs(r.data)).catch(() => {});
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -54,7 +61,7 @@ export const UsersPage = () => {
       if (payload.role === 'klien' || !isAdmin) {
         payload.alamat = form.alamat;
         payload.telepon = form.telepon;
-        payload.tarif_per_m3 = parseFloat(form.tarif_per_m3);
+        if (form.tariff_id) payload.tariff_id = parseInt(form.tariff_id);
         payload.meteran_awal = parseInt(form.meteran_awal);
       }
 
@@ -103,7 +110,7 @@ export const UsersPage = () => {
     setForm({
       name: u.name, email: u.email, password: '',
       role: u.role, alamat: u.customer?.alamat ?? '',
-      telepon: '', tarif_per_m3: '', meteran_awal: '',
+      telepon: '', tariff_id: u.customer?.tariff_id ? String(u.customer.tariff_id) : '', meteran_awal: '',
     });
     setShowForm(true);
   };
@@ -197,9 +204,23 @@ export const UsersPage = () => {
                 </div>
                 {!editUser && (
                   <>
-                    <div>
-                      <Label>Tarif per m³</Label>
-                      <Input type="number" value={form.tarif_per_m3} onChange={e => setForm(f => ({ ...f, tarif_per_m3: e.target.value }))} />
+                    <div className="space-y-1">
+                      <Label>Golongan Tariff</Label>
+                      <Select
+                        value={form.tariff_id}
+                        onValueChange={v => setForm(p => ({ ...p, tariff_id: v }))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Pilih golongan tariff" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {tariffs.map(t => (
+                            <SelectItem key={t.id} value={String(t.id)}>
+                              {t.golongan} — {formatRupiah(t.harga_per_m3)}/m³
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                     <div>
                       <Label>Meteran Awal</Label>

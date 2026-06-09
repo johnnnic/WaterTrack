@@ -14,7 +14,7 @@ interface PendingBill {
   jumlah_tagihan: number;
   requested_metode_pembayaran: string | null;
   customer: {
-    nomor_langganan: string;
+    id_klien: number;
     nama: string;
   } | null;
 }
@@ -70,7 +70,7 @@ export const PendingRequestsPage = () => {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>No. Langganan</TableHead>
+              <TableHead>No. Pelanggan</TableHead>
               <TableHead>Nama Pelanggan</TableHead>
               <TableHead>Periode</TableHead>
               <TableHead>Jumlah Tagihan</TableHead>
@@ -82,7 +82,7 @@ export const PendingRequestsPage = () => {
             {bills.map(b => (
               <TableRow key={b.id}>
                 <TableCell className="font-mono">
-                  {b.customer?.nomor_langganan ?? '-'}
+                  {b.customer ? `KLN-${b.customer.id_klien}` : '-'}
                 </TableCell>
                 <TableCell>{b.customer?.nama ?? '-'}</TableCell>
                 <TableCell>{b.periode}</TableCell>

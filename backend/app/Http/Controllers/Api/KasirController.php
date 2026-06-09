@@ -70,6 +70,7 @@ class KasirController extends Controller
         $request->validate([
             'id_klien'          => 'required|integer|exists:users,id',
             'metode_pembayaran' => 'sometimes|in:tunai,transfer,kartu',
+            'keterangan'        => 'nullable|string|max:500',
         ]);
 
         try {
@@ -98,7 +99,7 @@ class KasirController extends Controller
                 'jumlah_bayar'       => $tagihan->jumlah_tagihan,
                 'metode_pembayaran'  => $request->metode_pembayaran ?? 'tunai',
                 'tanggal_bayar'      => now(),
-                'keterangan'         => 'Pembayaran melalui kasir',
+                'keterangan'         => $request->input('keterangan', 'Pembayaran melalui kasir'),
             ]);
 
             $tagihan->update(['status' => 'sudah_bayar']);
@@ -164,10 +165,24 @@ class KasirController extends Controller
     public function payments(): JsonResponse
     {
         return response()->json(
-            Payment::with(['bill.customer:id,id_klien,nama', 'user:id,name'])
+            Payment::with(['bill.customer:id,id_klien,nama', 'user:id,name,role'])
                 ->latest()
                 ->paginate(15)
         );
+    }
+
+    public function paymentStats(): JsonResponse
+    {
+        $today = now()->startOfDay();
+        return response()->json([
+            'total_payments'     => Payment::count(),
+            'today_payments'     => Payment::whereDate('tanggal_bayar', $today)->count(),
+            'total_amount'       => Payment::sum('jumlah_bayar'),
+            'today_amount'       => Payment::whereDate('tanggal_bayar', $today)->sum('jumlah_bayar'),
+            'this_month_amount'  => Payment::whereMonth('tanggal_bayar', now()->month)
+                ->whereYear('tanggal_bayar', now()->year)
+                ->sum('jumlah_bayar'),
+        ]);
     }
 
     public function showPayment(Payment $payment): JsonResponse
