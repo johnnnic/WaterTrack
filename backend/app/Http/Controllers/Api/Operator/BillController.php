@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Validator;
 class BillController extends Controller {
     public function index(): JsonResponse {
         return response()->json(
-            Bill::with(['customer:id,nomor_langganan,nama'])->latest()->paginate(15)
+            Bill::with(['customer:id,id_klien,nama'])->latest()->paginate(15)
         );
     }
 

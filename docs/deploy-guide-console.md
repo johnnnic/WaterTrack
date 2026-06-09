@@ -756,205 +756,460 @@ Catat **Distribution ID** dan **Domain name** (format: `xxxx.cloudfront.net`) di
 ## 9. Dev 5 — ECR + ECS + ALB + Route 53
 
 > **Dikerjakan oleh:** Dev 5
-> **Input yang dibutuhkan:** Semua baris di Shared Info Sheet (Gate 1 harus selesai)
+> **Input yang dibutuhkan:** Semua baris di Shared Info Sheet (Gate 1 harus selesai — VPC ID, Subnet IDs, SG IDs, Secret ARNs, ACM ARN sudah terisi semua)
 > **Output:** ECR URI, ECS Cluster, ECS Service running, ALB DNS, Route 53 records
+> **Urutan pengerjaan:** 9.1 → 9.2 → 9.3 → 9.4 → 9.5 → 9.6 → 9.7 → 9.8 → 9.9 → 9.10. Jangan lewati urutan — Task Definition (9.7) membutuhkan ECR image (9.2) dan Log Group (9.3) sudah ada.
+
+---
 
 ### 9.1 Buat ECR Repository
+
+ECR (Elastic Container Registry) adalah registry Docker private milik AWS tempat image backend WaterTrack disimpan. ECS nantinya akan pull image dari sini setiap kali menjalankan container.
 
 1. **ECR → Repositories → Create repository**
 2. Konfigurasi:
    - **Visibility:** Private
    - **Repository name:** `watertrack-backend`
-   - **Scan on push:** Enable
+   - **Tag immutability:** Disabled (agar tag `latest` bisa di-overwrite)
+   - **Scan on push:** Enable (AWS Inspector otomatis scan vulnerability tiap push)
    - **Encryption:** AES-256
 3. **Create repository**
-4. Catat **Repository URI** di Shared Info Sheet
+4. Setelah dibuat, klik nama repository → salin **URI** lengkapnya (format: `ACCOUNT_ID.dkr.ecr.ap-southeast-3.amazonaws.com/watertrack-backend`) ke Shared Info Sheet.
+
+> **Konsistensi nama:** Nama repository ini (`watertrack-backend`) harus sesuai dengan `ECR_REPOSITORY` di file `.github/workflows/deploy.yml`. Cek nilai konstanta tersebut sebelum lanjut — jika berbeda, sesuaikan salah satunya sekarang agar CI/CD tidak gagal nanti.
 
 ### 9.2 Push Docker Image Pertama Kali
 
-Jalankan di terminal lokal dengan Docker dan AWS CLI:
+Ini adalah langkah paling kritis di workstream Dev 5: membangun image Docker dari kode backend dan mengunggahnya ke ECR agar ECS bisa menjalankannya. Langkah ini dikerjakan di **terminal lokal**, bukan di AWS Console.
+
+#### 9.2.1 Prasyarat Lokal
+
+Pastikan ketiga tool berikut sudah terinstall di mesin Dev 5 sebelum melanjutkan:
+
+| Tool | Cek versi | Catatan |
+|------|-----------|---------|
+| Docker Desktop | `docker --version` | Pastikan **sedang berjalan** (ikon Docker aktif di system tray) |
+| AWS CLI v2 | `aws --version` | Harus v2, bukan v1 — cek dengan `aws --version` pastikan output `aws-cli/2.x.x` |
+| Git (repo sudah ter-clone) | `git --version` | Repo harus ada di lokal karena build butuh akses ke `backend/` |
+
+#### 9.2.2 Buat AWS Access Key untuk CLI
+
+Akun `dev5-platform` dibuat dengan Console access (Bagian 5.1), tetapi AWS CLI membutuhkan **Access Key** (programmatic access) yang berbeda dari password Console. Langkah ini perlu dilakukan Dev 1 atau Dev 5 sendiri setelah login Console:
+
+1. **IAM → Users → dev5-platform → tab Security credentials**
+2. Scroll ke bagian **Access keys → Create access key**
+3. **Use case:** Command Line Interface (CLI) → Next
+4. Centang konfirmasi → **Create access key**
+5. **Salin atau unduh** Access Key ID dan Secret Access Key sekarang — ini **satu-satunya kesempatan** melihat Secret Key, setelah halaman ini ditutup tidak bisa dilihat lagi.
+
+Kemudian konfigurasi CLI di terminal lokal Dev 5:
 
 ```bash
-# Login ke ECR
+aws configure
+# AWS Access Key ID [None]: masukkan Access Key ID
+# AWS Secret Access Key [None]: masukkan Secret Access Key
+# Default region name [None]: ap-southeast-3
+# Default output format [None]: json
+```
+
+Verifikasi berhasil:
+
+```bash
+aws sts get-caller-identity
+# Expected:
+# {
+#   "UserId": "AIDAXXXXXXXXXXXXXXXXX",
+#   "Account": "775755739096",
+#   "Arn": "arn:aws:iam::775755739096:user/dev5-platform"
+# }
+```
+
+Jika Account ID sesuai dengan Shared Info Sheet, CLI sudah terhubung ke akun AWS yang benar.
+
+#### 9.2.3 Memahami Struktur Dockerfile
+
+Sebelum build, penting memahami apa yang dilakukan `backend/Dockerfile` agar lebih mudah debug bila ada error:
+
+```
+Tahap 1 — Base image
+  └─ php:8.2-fpm-alpine        ← Alpine Linux ringan (~10MB), PHP-FPM sudah termasuk
+
+Tahap 2 — Install sistem & ekstensi PHP
+  └─ nginx, supervisor, curl   ← Nginx sebagai web server, Supervisor mengelola proses
+  └─ pdo_mysql, gd, zip, dll.  ← Ekstensi PHP yang dibutuhkan Laravel
+
+Tahap 3 — Install dependensi PHP (layer terpisah untuk cache efisien)
+  └─ COPY composer.json/lock   ← Disalin dulu SEBELUM kode aplikasi
+  └─ composer install --no-dev ← Tanpa --dev: phpunit & tools dev tidak masuk image production
+
+Tahap 4 — Copy kode aplikasi
+  └─ COPY . .                  ← Semua file backend ke /var/www/html
+  └─ dump-autoload --optimize  ← Buat classmap production (lebih cepat dari PSR-4 autoload biasa)
+
+Tahap 5 — Konfigurasi runtime
+  └─ nginx.conf, supervisord.conf, php.ini   ← Config yang sudah disiapkan di backend/docker/
+  └─ chown www-data storage/                 ← Laravel butuh write permission ke storage/
+
+ENTRYPOINT: docker/entrypoint.sh (dijalankan SETIAP container start)
+  ├─ php artisan config:cache   ← Cache config SETELAH container start
+  ├─ php artisan route:cache    ← Cache routing
+  ├─ php artisan view:cache     ← Cache blade templates
+  └─ supervisord                ← Jalankan nginx + php-fpm secara paralel
+```
+
+> **Mengapa `config:cache` ada di entrypoint, bukan saat `docker build`?**
+> Karena `APP_KEY`, `DB_HOST`, `DB_PASSWORD`, dan variabel lainnya baru tersedia saat container ECS berjalan — diinjeksikan oleh Secrets Manager. Jika dijalankan saat build, perintah ini akan gagal karena `APP_KEY` kosong dan Laravel akan throw exception.
+
+#### 9.2.4 Login ke ECR
+
+AWS ECR menggunakan token autentikasi sementara yang berlaku **12 jam**. Perintah berikut mengambil token tersebut dan langsung menggunakannya untuk login Docker:
+
+```bash
 aws ecr get-login-password --region ap-southeast-3 | \
   docker login --username AWS --password-stdin \
   ACCOUNT_ID.dkr.ecr.ap-southeast-3.amazonaws.com
-
-# Build dari backend/
-cd backend/
-docker build -t watertrack-backend .
-
-# Tag dan push
-docker tag watertrack-backend:latest \
-  ACCOUNT_ID.dkr.ecr.ap-southeast-3.amazonaws.com/watertrack-backend:latest
-
-docker push ACCOUNT_ID.dkr.ecr.ap-southeast-3.amazonaws.com/watertrack-backend:latest
 ```
+
+Ganti `ACCOUNT_ID` dengan AWS Account ID dari Shared Info Sheet. Output yang diharapkan: `Login Succeeded`
+
+Jika muncul error `Cannot perform an interactive login from a non TTY device`, jalankan dua baris terpisah:
+```bash
+TOKEN=$(aws ecr get-login-password --region ap-southeast-3)
+docker login --username AWS --password "$TOKEN" \
+  ACCOUNT_ID.dkr.ecr.ap-southeast-3.amazonaws.com
+```
+
+#### 9.2.5 Build Docker Image
+
+Jalankan dari **root repository** (`WaterTrack/`), bukan dari dalam folder `backend/`:
+
+```bash
+docker build \
+  --platform linux/amd64 \
+  -t watertrack-backend \
+  backend/
+```
+
+Penjelasan flag:
+- `--platform linux/amd64` — **wajib** jika mesin Dev 5 adalah Mac dengan chip Apple Silicon (M1/M2/M3) atau CPU ARM lainnya. ECS Fargate berjalan di `linux/amd64`. Tanpa flag ini, image ARM akan diupload ke ECR tapi container akan langsung crash saat ECS mencoba menjalankannya dengan error `exec format error`.
+- `-t watertrack-backend` — nama lokal sementara untuk image.
+- `backend/` — path ke folder berisi Dockerfile, relatif terhadap working directory saat ini.
+
+Build pertama kali membutuhkan **5–15 menit** karena composer install mendownload semua dependensi. Build berikutnya jauh lebih cepat karena Docker cache layer `composer install`.
+
+Verifikasi image berhasil dibuat:
+```bash
+docker images | grep watertrack-backend
+# REPOSITORY           TAG       IMAGE ID       CREATED         SIZE
+# watertrack-backend   latest    abc123def456   1 minute ago    ~180MB
+```
+
+#### 9.2.6 Tag dan Push ke ECR
+
+Docker membutuhkan image di-tag dengan URI ECR lengkap sebelum bisa di-push:
+
+```bash
+# Simpan URI ke variabel untuk kemudahan — ganti ACCOUNT_ID dengan Account ID sebenarnya
+ECR_URI="ACCOUNT_ID.dkr.ecr.ap-southeast-3.amazonaws.com/watertrack-backend"
+
+# Tag image lokal dengan URI ECR
+docker tag watertrack-backend:latest $ECR_URI:latest
+
+# Push ke ECR
+docker push $ECR_URI:latest
+```
+
+Proses push pertama kali membutuhkan **5–15 menit** tergantung kecepatan internet (image ~180MB). Progress ditampilkan layer per layer di terminal.
+
+Output yang diharapkan di akhir:
+```
+latest: digest: sha256:xxxxxxxxxxxx size: 1234
+```
+
+#### 9.2.7 Verifikasi di ECR Console
+
+1. **ECR → Repositories → watertrack-backend → Images**
+2. Pastikan muncul baris dengan tag `latest`, kolom **Pushed at** menunjukkan waktu tadi
+3. Kolom **Scan status** menunjukkan `Complete` atau `In progress` (bukan `Failed`)
+4. Salin **Image URI** lengkap termasuk `:latest` di akhir — akan dibutuhkan di step 9.7
+
+#### 9.2.8 Troubleshooting Build & Push
+
+| Error | Penyebab | Solusi |
+|-------|----------|--------|
+| `Cannot connect to the Docker daemon` | Docker Desktop belum berjalan | Buka Docker Desktop, tunggu ikon berubah hijau di system tray |
+| `exec format error` saat ECS menjalankan container | Image dibangun untuk ARM tanpa `--platform` | Rebuild dengan `--platform linux/amd64` dan push ulang |
+| `no space left on device` saat build | Disk Docker penuh | `docker system prune -a` untuk bersihkan image lama, lalu build ulang |
+| `denied: Your authorization token has expired` | Token ECR berlaku 12 jam | Ulangi langkah login di 9.2.4 |
+| `denied: User is not authorized to perform ecr:InitiateLayerUpload` | `dev5-platform` tidak punya izin ECR push | Cek `AmazonEC2ContainerRegistryFullAccess` sudah ter-attach (Bagian 5.1) |
+| `COPY failed: no such file or directory` saat build | Dijalankan dari dalam folder `backend/` | Pindah ke root repo lalu jalankan `docker build ... backend/` |
+| Composer install gagal: SSL certificate error | Proxy/VPN blokir koneksi ke packagist.org | Matikan VPN, coba lagi |
 
 ### 9.3 Buat CloudWatch Log Group
 
+Log group ini **harus dibuat sebelum Task Definition** (langkah 9.7). Jika belum ada saat ECS mencoba menulis log pertama kali, task akan gagal start dengan error `ResourceNotFoundException`.
+
 1. **CloudWatch → Log groups → Create log group**
-2. **Log group name:** `/ecs/watertrack-backend`
-3. **Retention setting:** 30 days
+2. **Log group name:** `/ecs/watertrack-backend` — nama ini harus persis sama dengan yang diisi di Task Definition nanti
+3. **Retention setting:** 30 days — log lebih dari 30 hari otomatis terhapus (hemat biaya)
 4. **Create**
+
+Semua output container (stdout/stderr) akan muncul di sini, termasuk log Laravel dan output `php artisan config:cache` dari entrypoint saat container start.
+
+---
 
 ### 9.4 Buat ECS Cluster
 
+ECS Cluster adalah kumpulan kapasitas komputasi. Dengan Fargate, AWS yang mengelola server — tidak perlu EC2.
+
 1. **ECS → Clusters → Create cluster**
 2. **Cluster name:** `watertrack-cluster`
-3. **Infrastructure:** AWS Fargate (serverless)
-4. **Monitoring:** Use Container Insights
+3. **Infrastructure:** AWS Fargate (serverless) — **jangan pilih EC2**
+4. **Monitoring:** Use Container Insights — aktifkan agar metrik CPU/memory per-task muncul di CloudWatch (dipakai Alarm di Bagian 12)
 5. **Create cluster**
+
+> Container Insights menambah biaya CloudWatch kecil (~$0.35/GB log). Sangat direkomendasikan untuk visibility saat troubleshoot.
+
+---
 
 ### 9.5 Buat Target Group
 
+Target Group adalah daftar "tujuan" yang menerima traffic dari ALB. Untuk Fargate, tipenya wajib **IP addresses** karena setiap Fargate task mendapat IP sendiri yang berubah setiap restart.
+
 1. **EC2 → Target groups → Create target group**
-2. **Target type:** IP addresses
+2. **Target type:** IP addresses — **wajib pilih ini, bukan Instances**
 3. **Target group name:** `watertrack-tg`
-4. **Protocol:** HTTP | **Port:** 80
-5. **VPC:** pilih VPC watertrack
+4. **Protocol:** HTTP | **Port:** 80 — komunikasi ALB→Container via HTTP (enkripsi TLS sudah diakhiri di ALB)
+5. **VPC:** pilih VPC watertrack (hasil Dev 2)
 6. **Health check settings:**
    - **Protocol:** HTTP
-   - **Path:** `/health`
-   - **Healthy threshold:** 2
-   - **Unhealthy threshold:** 3
+   - **Path:** `/health` — endpoint ini ada di `routes/web.php`, mengembalikan `{"status":"ok"}` tanpa autentikasi. ALB memanggil endpoint ini secara berkala untuk memastikan container masih hidup.
+   - **Healthy threshold:** 2 — butuh 2× respons 200 berturut-turut sebelum dianggap Healthy
+   - **Unhealthy threshold:** 3 — butuh 3× gagal berturut-turut sebelum dianggap Unhealthy dan task di-replace
    - **Timeout:** 5 seconds
    - **Interval:** 30 seconds
    - **Success codes:** 200
 7. **Next → Create target group**
+
+> Jangan daftarkan IP secara manual — ECS otomatis mendaftarkan IP Fargate task saat service dibuat (langkah 9.8).
+
 8. Catat **Target Group ARN** di Shared Info Sheet
 
+---
+
 ### 9.6 Buat Application Load Balancer (ALB)
+
+ALB menerima traffic dari internet (port 80/443), mengakhiri TLS, lalu meneruskan ke container di private subnet via HTTP internal.
 
 1. **EC2 → Load Balancers → Create load balancer → Application Load Balancer**
 2. **Basic:**
    - **Name:** `watertrack-alb`
-   - **Scheme:** Internet-facing
+   - **Scheme:** Internet-facing — ALB harus bisa diakses dari internet
    - **IP address type:** IPv4
 3. **Network mapping:**
    - **VPC:** pilih VPC watertrack
-   - Centang kedua AZ, masing-masing pilih **public subnet**
-4. **Security groups:** hapus default, pilih `alb-sg`
+   - Centang **kedua AZ**, masing-masing pilih **public subnet** — ALB harus di public subnet agar mendapat IP publik. Private subnet tidak akan berhasil.
+4. **Security groups:** hapus `default`, pilih `alb-sg` (dari Shared Info Sheet Dev 2)
 5. **Listeners:**
-   - **Port 443 (HTTPS):** Forward to `watertrack-tg`, certificate dari ACM ap-southeast-3
+   - Tambah listener **Port 443, Protocol HTTPS** → Forward to `watertrack-tg` → pilih ACM certificate **ap-southeast-3** dari Shared Info Sheet Dev 2
 6. **Create load balancer**
-7. Catat **DNS name** dan **ARN** di Shared Info Sheet
+7. Catat **DNS name** (format: `watertrack-alb-xxxx.ap-southeast-3.elb.amazonaws.com`) dan **ARN** di Shared Info Sheet
 
 #### 9.6.1 Tambah HTTP → HTTPS Redirect
 
-1. **EC2 → Load Balancers → watertrack-alb → Listeners → Add listener**
+Setelah ALB terbuat, tambahkan listener port 80 yang otomatis redirect ke HTTPS:
+
+1. **EC2 → Load Balancers → watertrack-alb → Listeners and rules → Add listener**
 2. **Protocol:** HTTP | **Port:** 80
-3. **Default actions:** Redirect to HTTPS, port 443, status 301
+3. **Default actions:** Redirect → HTTPS | Port: 443 | Status code: **301 Moved Permanently**
 4. **Add**
 
+Dengan ini, akses `http://api.aftaza.dev` otomatis diarahkan ke `https://api.aftaza.dev`.
+
+---
+
 ### 9.7 Buat ECS Task Definition
+
+Task Definition adalah "blueprint" container: image apa yang dijalankan, berapa CPU/memory, environment variable apa saja, dan bagaimana logging-nya. Setiap deploy baru akan membuat **revision** baru dari Task Definition yang sama.
+
+> **Siapkan dulu sebelum membuka form:** Kumpulkan ECR Image URI (dari 9.2.7) dan semua Secret ARN dari Shared Info Sheet [DEV 3] sebelum mulai mengisi — form tidak bisa disimpan setengah jalan.
 
 1. **ECS → Task definitions → Create new task definition**
 2. **Task definition family:** `watertrack-backend`
 3. **Launch type:** AWS Fargate
-4. **OS/Architecture:** Linux/X86_64
-5. **Task size:** CPU 0.5 vCPU | Memory 1 GB
-6. **Task role:** `watertrack-ecs-task-role`
-7. **Task execution role:** `watertrack-ecs-execution-role`
-8. **Container:**
-   - **Name:** `watertrack-app`
-   - **Image URI:** URI dari ECR (Shared Info Sheet)
-   - **Port mappings:** Container port 80, Protocol HTTP
+4. **OS/Architecture:** Linux/X86_64 — **wajib X86_64**, sesuai `--platform linux/amd64` saat build
+5. **Task size:** CPU **0.5 vCPU** | Memory **1 GB**
+6. **Task role:** `watertrack-ecs-task-role` — digunakan kode Laravel saat berjalan (akses S3 uploads)
+7. **Task execution role:** `watertrack-ecs-execution-role` — digunakan ECS *sebelum* container start (pull image ECR, ambil secrets)
 
-   **Environment variables** (pilih type **Value**):
-   | Key | Value |
-   |-----|-------|
-   | APP_ENV | production |
-   | APP_DEBUG | false |
-   | APP_URL | https://api.yourdomain.com |
-   | FRONTEND_URL | https://yourdomain.com |
-   | LOG_CHANNEL | stderr |
-   | LOG_LEVEL | error |
-   | DB_CONNECTION | mysql |
-   | DB_PORT | 3306 |
-   | DB_DATABASE | water_billing |
-   | DB_USERNAME | watertrack_admin |
-   | SESSION_DRIVER | redis |
-   | SESSION_ENCRYPT | true |
-   | CACHE_STORE | redis |
-   | QUEUE_CONNECTION | redis |
-   | FILESYSTEM_DISK | s3 |
-   | AWS_BUCKET | watertrack-uploads-prod |
-   | AWS_DEFAULT_REGION | ap-southeast-3 |
+8. **Container → Add container:**
+   - **Name:** `watertrack-app` — harus sama persis dengan `CONTAINER_NAME` di `deploy.yml`
+   - **Image URI:** URI ECR dari Shared Info Sheet + tag `:latest`
+     - Contoh: `775755739096.dkr.ecr.ap-southeast-3.amazonaws.com/watertrack-backend:latest`
+   - **Port mappings:** Container port `80`, Protocol `HTTP`
 
-   **Environment variables** (pilih type **ValueFrom** — isi dengan ARN dari Shared Info Sheet):
-   | Key | ValueFrom |
-   |-----|-----------|
-   | APP_KEY | ARN Secret `watertrack/app-key` |
-   | DB_PASSWORD | ARN Secret `watertrack/db-password` |
-   | DB_HOST | ARN Secret `watertrack/db-host` |
-   | REDIS_HOST | ARN Secret `watertrack/redis-host` |
+   **Environment variables — type `Value` (plaintext):**
 
-   > ARN harus lengkap termasuk suffix (mis. `-AbCdEf`). Copy persis dari Shared Info Sheet.
+   | Key | Value | Catatan |
+   |-----|-------|---------|
+   | `APP_ENV` | `production` | |
+   | `APP_DEBUG` | `false` | Wajib false — error detail tidak boleh bocor ke client |
+   | `APP_URL` | `https://api.aftaza.dev` | Ganti sesuai domain; dipakai Laravel untuk generate URL |
+   | `FRONTEND_URL` | `https://aftaza.dev` | Untuk CORS header — tanpa ini request dari browser diblokir |
+   | `LOG_CHANNEL` | `stderr` | Log ke stderr → CloudWatch otomatis menangkap |
+   | `LOG_LEVEL` | `error` | Production: log level error ke atas saja |
+   | `DB_CONNECTION` | `mysql` | |
+   | `DB_PORT` | `3306` | |
+   | `DB_DATABASE` | `water_billing` | Nama database dari setup RDS (Bagian 7.2) |
+   | `DB_USERNAME` | `watertrack_admin` | Master username RDS |
+   | `SESSION_DRIVER` | `redis` | Session di Redis, bukan file — penting untuk multi-task ECS (jika file, session tidak tershare antar task) |
+   | `SESSION_ENCRYPT` | `true` | |
+   | `CACHE_STORE` | `redis` | |
+   | `QUEUE_CONNECTION` | `redis` | |
+   | `FILESYSTEM_DISK` | `s3` | Upload file ke S3, bukan lokal (storage lokal tidak persisten di Fargate) |
+   | `AWS_BUCKET` | `watertrack-uploads-prod` | |
+   | `AWS_DEFAULT_REGION` | `ap-southeast-3` | |
+
+   **Environment variables — type `ValueFrom` (dari Secrets Manager):**
+
+   Nilai diambil dari Secrets Manager saat container start — tidak pernah muncul sebagai plaintext di Console atau log.
+
+   | Key | ValueFrom — isi dengan ARN lengkap dari Shared Info Sheet |
+   |-----|----------------------------------------------------------|
+   | `APP_KEY` | `arn:aws:secretsmanager:ap-southeast-3:775755739096:secret:watertrack/app-key-mxSzGu` |
+   | `DB_PASSWORD` | `arn:aws:secretsmanager:ap-southeast-3:775755739096:secret:watertrack/db-password-q8hwYQ` |
+   | `DB_HOST` | `arn:aws:secretsmanager:ap-southeast-3:775755739096:secret:watertrack/db-host-4Fvid5` |
+   | `REDIS_HOST` | `arn:aws:secretsmanager:ap-southeast-3:775755739096:secret:watertrack/redis-host-SGM4I3` |
+
+   > **ARN suffix wajib disertakan:** AWS Secrets Manager menambahkan 6 karakter acak di akhir setiap ARN (mis. `-mxSzGu`). Copy ARN dari Shared Info Sheet persis apa adanya termasuk suffix-nya — jika suffix tidak lengkap, ECS akan gagal ambil secret dengan error `ResourceNotFoundException`.
+
+   > **Tentang `REDIS_HOST`:** Secret ini berisi hostname ElastiCache **tanpa port** (mis. `clustercfg.watertrack-redis-prod.hxtqnn.apse3.cache.amazonaws.com`). Port 6379 sudah dikonfigurasi default di Laravel. Jangan masukkan hostname beserta `:6379` — koneksi akan gagal.
 
    **Logging:**
-   - Use log collection: awslogs
-   - Log group: `/ecs/watertrack-backend`
-   - Region: ap-southeast-3
-   - Stream prefix: ecs
+   - **Log driver:** `awslogs`
+   - **awslogs-group:** `/ecs/watertrack-backend` — harus sama persis dengan Log Group di langkah 9.3
+   - **awslogs-region:** `ap-southeast-3`
+   - **awslogs-stream-prefix:** `ecs`
+   - **awslogs-create-group:** `false` — sudah dibuat manual di 9.3
 
-9. **Create**
+9. **Create** — Task Definition revision 1 berhasil dibuat.
+
+---
 
 ### 9.8 Buat ECS Service
 
-1. **ECS → Clusters → watertrack-cluster → Services → Create**
+ECS Service memastikan sejumlah task selalu berjalan. Jika satu task crash, Service otomatis menjalankan pengganti. Service juga yang menghubungkan task ke ALB Target Group.
+
+1. **ECS → Clusters → watertrack-cluster → tab Services → Create**
 2. **Launch type:** FARGATE
-3. **Task definition:** `watertrack-backend` (revision terbaru)
+3. **Task definition:** `watertrack-backend` — pilih revision terbaru (angka tertinggi)
 4. **Service name:** `watertrack-backend`
-5. **Desired tasks:** 2
+5. **Desired tasks:** 2 — minimal 2 untuk high availability (satu task per AZ)
 6. **Networking:**
    - **VPC:** watertrack VPC
-   - **Subnets:** kedua **private** subnet
-   - **Security groups:** `ecs-sg`
+   - **Subnets:** centang kedua **private** subnet — container tidak boleh langsung dapat IP publik
+   - **Security groups:** `ecs-sg` (dari Shared Info Sheet Dev 2)
    - **Public IP:** Turned off
 7. **Load balancing:**
+   - **Load balancer type:** Application Load Balancer
    - **Load balancer:** `watertrack-alb`
-   - **Container:** `watertrack-app:80:80`
-   - **Listener:** port 443 (existing)
-   - **Target group:** `watertrack-tg` (existing)
-   - **Health check grace period:** 120 seconds
+   - **Container to load balance:** `watertrack-app:80:80`
+   - **Listener:** pilih `443:HTTPS` (existing)
+   - **Target group:** pilih `watertrack-tg` (existing)
+   - **Health check grace period:** `120` seconds — memberi waktu entrypoint.sh menjalankan `config:cache`, `route:cache`, `view:cache` sebelum ALB mulai health check. Jika terlalu kecil, task dianggap unhealthy sebelum sempat siap.
 8. **Service auto scaling:**
-   - Minimum tasks: 2 | Maximum tasks: 6
+   - Minimum tasks: `2` | Maximum tasks: `6`
    - **Add scaling policy:**
      - Type: Target tracking
-     - Metric: ECSServiceAverageCPUUtilization
-     - Target value: 70
+     - Metric: `ECSServiceAverageCPUUtilization`
+     - Target value: `70`
+     - Scale-in cooldown: 300s | Scale-out cooldown: 60s
 9. **Create service**
 
-Tunggu hingga 2/2 tasks berstatus **Running**.
+**Monitor proses startup:**
+- **ECS → Clusters → watertrack-cluster → Services → watertrack-backend → tab Tasks**
+- Tunggu kolom **Last status**: `PROVISIONING` → `PENDING` → `RUNNING` (~2–4 menit per task)
+- Setelah RUNNING, cek **tab Health** di Target Group: harus menunjukkan 2/2 **Healthy**
+
+Jika task terus STOPPED atau stuck di PENDING lebih dari 5 menit:
+- **CloudWatch → Log groups → /ecs/watertrack-backend** → buka log stream terbaru
+- Cari baris error — biasanya masalah DB, APP_KEY, atau pull image gagal
+
+---
 
 ### 9.9 Konfigurasi Route 53
 
-1. **Route 53 → Hosted zones → pilih zona domain**
-   - Jika belum ada: **Create hosted zone**, masukkan domain, pilih Public. Salin nameserver ke registrar domain.
-   - Sudah ada dengan domain aftaza.dev
+Route 53 mengarahkan domain publik ke ALB (API) dan ke CloudFront (frontend).
+
+1. **Route 53 → Hosted zones → pilih zona `aftaza.dev`**
+   - Hosted zone sudah ada. Jika belum ada: **Create hosted zone** → masukkan domain → Public → salin 4 nameserver ke registrar, tunggu propagasi NS (bisa 24–48 jam).
 
 2. **Record API (backend):**
-   - **Create record** | Name: `api` | Type: A | Alias: on
-   - Route traffic to: ALB di ap-southeast-3 → pilih `watertrack-alb`
+   - **Create record**
+   - **Record name:** `api` → domain akhir: `api.aftaza.dev`
+   - **Record type:** A | **Alias:** ON
+   - **Route traffic to:** Alias to Application and Classic Load Balancer → ap-southeast-3 → pilih `watertrack-alb`
+   - **Create records**
 
 3. **Record Frontend (CloudFront):**
-   - **Create record** | Name: (kosong) | Type: A | Alias: on
-   - Route traffic to: CloudFront distribution → pilih `watertrack-frontend-prod`
+   - **Create record**
+   - **Record name:** (kosong) → domain akhir: `aftaza.dev`
+   - **Record type:** A | **Alias:** ON
+   - **Route traffic to:** Alias to CloudFront distribution → pilih distribusi `watertrack-frontend-prod`
+   - **Create records**
 
 4. **Record WWW (opsional):**
-   - **Create record** | Name: `www` | Type: CNAME | Value: `yourdomain.com`
+   - **Create record** | Name: `www` | Type: `CNAME` | Value: `aftaza.dev` | TTL: 300
+
+> Record alias AWS aktif dalam **1–5 menit**. Verifikasi dengan `nslookup api.aftaza.dev` — harus mengembalikan IP ALB.
+
+---
 
 ### 9.10 Verifikasi Health Check
 
-Setelah DNS propagasi (5–30 menit):
+Lakukan verifikasi bertahap setelah DNS propagasi:
 
+**Langkah 1 — Cek ALB langsung, bypass DNS:**
 ```bash
-curl https://api.yourdomain.com/health
+# Gunakan DNS name ALB dari Shared Info Sheet
+curl -k https://watertrack-alb-xxxx.ap-southeast-3.elb.amazonaws.com/health \
+  -H "Host: api.aftaza.dev"
 # Expected: {"status":"ok"}
 ```
 
-Jika sukses, beritahu tim: **"Gate 2 done."**
+**Langkah 2 — Cek via domain:**
+```bash
+curl https://api.aftaza.dev/health
+# Expected: {"status":"ok"}
+```
+
+**Langkah 3 — Cek redirect HTTP ke HTTPS:**
+```bash
+curl -I http://api.aftaza.dev/health
+# Expected: HTTP/1.1 301 Moved Permanently
+#           Location: https://api.aftaza.dev/health
+```
+
+**Langkah 4 — Cek CORS (simulasi request browser):**
+```bash
+curl -I https://api.aftaza.dev/health \
+  -H "Origin: https://aftaza.dev"
+# Expected di response header: Access-Control-Allow-Origin: https://aftaza.dev
+```
+
+Jika semua langkah berhasil, beritahu tim: **"Gate 2 done — backend running."**
+
+#### Troubleshooting Umum Section 9
+
+| Gejala | Kemungkinan Penyebab | Di mana Cek |
+|--------|---------------------|-------------|
+| Task terus STOPPED | APP_KEY tidak terbaca / ARN Secret salah | CloudWatch log: cari `RuntimeException: No application encryption key` |
+| Task STOPPED dengan exit code 1 | `config:cache` gagal karena tidak bisa konek DB | CloudWatch log: cari `SQLSTATE[HY000]` |
+| Task PENDING > 10 menit | ECS tidak bisa pull image ECR (NAT Gateway belum jalan) | ECS Service → Events tab: cari `CannotPullContainerError` |
+| Target group Unhealthy | Container belum siap dalam grace period 120 detik | Naikkan grace period ke 180 di Service settings |
+| `502 Bad Gateway` dari ALB | Container berjalan tapi Nginx crash atau PHP-FPM tidak start | CloudWatch log: cari `[emerg]` nginx atau tidak ada baris `NOTICE: fpm is running` |
+| `exec format error` di log | Image ARM dijalankan di X86_64 | Rebuild dengan `--platform linux/amd64` (lihat 9.2.5) |
+| `AccessDeniedException` saat read secret | Execution role tidak punya permission Secrets Manager | Cek `WaterTrackSecretsAccess` sudah ter-attach ke execution role (Bagian 7.5) |
 
 ---
 

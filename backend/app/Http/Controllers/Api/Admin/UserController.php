@@ -8,7 +8,6 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Support\Str;
 
 class UserController extends Controller {
     public function index(): JsonResponse {
@@ -34,11 +33,15 @@ class UserController extends Controller {
 
         if ($request->role === 'klien') {
             $user = DB::transaction(function () use ($request) {
-                do { $nomor = Str::upper(Str::random(6)); }
-                while (Customer::where('nomor_langganan', $nomor)->exists());
+                $user = User::create([
+                    'name'     => $request->name,
+                    'email'    => $request->email,
+                    'password' => $request->password,
+                    'role'     => 'klien',
+                ]);
 
-                $customer = Customer::create([
-                    'nomor_langganan'       => $nomor,
+                Customer::create([
+                    'id_klien'              => $user->id,
                     'nama'                  => $request->name,
                     'alamat'                => $request->alamat,
                     'telepon'               => $request->telepon,
@@ -48,23 +51,16 @@ class UserController extends Controller {
                     'tanggal_baca_terakhir' => now(),
                 ]);
 
-                return User::create([
-                    'name'        => $request->name,
-                    'email'       => $request->email,
-                    'password'    => $request->password, // hashed by User model cast
-                    'role'        => 'klien',
-                    'customer_id' => $customer->id,
-                    // password_changed_at stays null → forced password change on first login
-                ]);
+                return $user->load('customer');
             });
 
-            return response()->json($user->load('customer'), 201);
+            return response()->json($user, 201);
         }
 
         $user = User::create([
             'name'                => $request->name,
             'email'               => $request->email,
-            'password'            => $request->password, // hashed by User model cast
+            'password'            => $request->password,
             'role'                => $request->role,
             'password_changed_at' => now(),
         ]);
@@ -83,7 +79,7 @@ class UserController extends Controller {
 
         $data = $request->only(['name', 'email', 'role']);
         if ($request->filled('password')) {
-            $data['password'] = $request->password; // hashed by User model cast
+            $data['password'] = $request->password;
         }
         $user->update($data);
 

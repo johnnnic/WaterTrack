@@ -7,10 +7,6 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class KlienController extends Controller {
-    /**
-     * GET /api/klien/profile
-     * Returns the authenticated klien user's data and linked customer record.
-     */
     public function profile(Request $request): JsonResponse {
         $user = $request->user()->load('customer');
         return response()->json([
@@ -19,35 +15,27 @@ class KlienController extends Controller {
         ]);
     }
 
-    /**
-     * GET /api/klien/bills
-     * Returns paginated bills belonging to this klien's customer.
-     */
     public function bills(Request $request): JsonResponse {
-        $customerId = $request->user()->customer_id;
+        $customer = $request->user()->customer;
 
-        if (!$customerId) {
+        if (!$customer) {
             return response()->json(['message' => 'Data pelanggan tidak ditemukan.'], 404);
         }
 
         return response()->json(
-            Bill::where('customer_id', $customerId)
+            Bill::where('customer_id', $customer->id)
                 ->orderBy('periode', 'desc')
                 ->paginate(15)
         );
     }
 
-    /**
-     * PUT /api/klien/bills/{bill}/request-payment
-     * Klien submits a payment request; sets bill to menunggu_konfirmasi.
-     */
     public function requestPayment(Request $request, Bill $bill): JsonResponse {
         $request->validate([
             'metode_pembayaran' => 'required|in:tunai,transfer,kartu',
         ]);
 
-        // Ownership check — klien can only touch their own bills
-        if ($bill->customer_id !== $request->user()->customer_id) {
+        $customer = $request->user()->customer;
+        if (!$customer || $bill->customer_id !== $customer->id) {
             return response()->json(['message' => 'Tagihan tidak ditemukan.'], 404);
         }
 
@@ -67,12 +55,9 @@ class KlienController extends Controller {
         return response()->json($bill);
     }
 
-    /**
-     * GET /api/klien/bills/{bill}/pdf
-     * Returns full bill data for client-side PDF rendering.
-     */
     public function billPdf(Request $request, Bill $bill): JsonResponse {
-        if ($bill->customer_id !== $request->user()->customer_id) {
+        $customer = $request->user()->customer;
+        if (!$customer || $bill->customer_id !== $customer->id) {
             return response()->json(['message' => 'Tagihan tidak ditemukan.'], 404);
         }
 

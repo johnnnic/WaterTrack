@@ -69,7 +69,7 @@ export const MyBillsPage = () => {
     w.document.write(`<html><head><title>Struk WaterTrack</title>
       <style>body{font-family:sans-serif;padding:20px}</style></head><body>
       <h2>WaterTrack — Struk Tagihan</h2>
-      <p>No. Langganan: ${data.customer?.nomor_langganan ?? '-'}</p>
+      <p>ID Klien: ${data.customer?.id_klien ? `KLN-${data.customer.id_klien}` : '-'}</p>
       <p>Nama: ${data.customer?.nama ?? '-'}</p>
       <p>Periode: ${data.periode}</p>
       <p>Pemakaian: ${data.pemakaian} m³</p>

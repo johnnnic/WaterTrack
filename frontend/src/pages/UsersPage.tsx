@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 
 interface UserWithCustomer extends User {
-  customer?: { nomor_langganan: string; nama: string; alamat: string } | null;
+  customer?: { id_klien: number; nama: string; alamat: string } | null;
 }
 
 const EMPTY_FORM = {
@@ -130,7 +130,7 @@ export const UsersPage = () => {
               <TableHead>Nama</TableHead>
               <TableHead>Email</TableHead>
               <TableHead>Role</TableHead>
-              <TableHead>No. Langganan</TableHead>
+              <TableHead>ID Klien</TableHead>
               <TableHead>Aksi</TableHead>
             </TableRow>
           </TableHeader>
@@ -142,7 +142,7 @@ export const UsersPage = () => {
                 <TableCell>
                   <Badge className={roleBadgeColor[u.role]}>{u.role}</Badge>
                 </TableCell>
-                <TableCell className="font-mono">{u.customer?.nomor_langganan ?? '-'}</TableCell>
+                <TableCell className="font-mono">{u.customer ? `KLN-${u.customer.id_klien ?? u.id}` : '-'}</TableCell>
                 <TableCell className="space-x-2">
                   <Button size="sm" variant="outline" onClick={() => openEdit(u)}>Edit</Button>
                   <Button size="sm" variant="destructive" onClick={() => handleDelete(u.id)}>Hapus</Button>

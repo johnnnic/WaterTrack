@@ -3,7 +3,7 @@ import api from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 interface CustomerProfile {
-  nomor_langganan: string;
+  id_klien: number;
   nama: string;
   alamat: string;
   telepon: string;
@@ -31,8 +31,8 @@ export const MyProfilePage = () => {
         <CardHeader><CardTitle>Informasi Pelanggan</CardTitle></CardHeader>
         <CardContent className="grid grid-cols-2 gap-4">
           <div>
-            <p className="text-muted-foreground text-sm">No. Langganan</p>
-            <p className="font-mono font-bold text-gold">{customer.nomor_langganan}</p>
+            <p className="text-muted-foreground text-sm">ID Klien</p>
+            <p className="font-mono font-bold text-gold">KLN-{customer.id_klien}</p>
           </div>
           <div>
             <p className="text-muted-foreground text-sm">Nama</p>

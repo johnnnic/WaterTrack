@@ -40,27 +40,39 @@ The Axios instance in `src/lib/api.ts` defaults to `http://127.0.0.1:8000/api` i
 ### Auth State
 User object shape (from `src/types/auth.ts`):
 ```ts
-{ id: number; name: string; email: string; role: 'admin' | 'operator' | 'kasir'; created_at: string }
+{ id: number; name: string; email: string; role: 'admin' | 'operator' | 'kasir' | 'klien'; created_at: string }
 ```
+No `customer_id` on User — customer data accessed via `user.customer` (hasOne via `id_klien`).
 Auth is restored from localStorage on app load inside `AuthContext`. `logout()` calls `localStorage.clear()` then hard-redirects to `/login`.
+
+### Customer Identifier
+`id_klien` = `users.id` — kasir dan operator input angka ini untuk lookup pelanggan.
+Display di UI: `KLN-{id_klien}` (prefix untuk keterbacaan). Dikirim ke API sebagai integer biasa.
 
 ### Page Structure
 ```
 src/pages/
 ├── LoginPage.tsx
-├── DashboardPage.tsx      # Single large component with role-specific UI branches
+├── DashboardPage.tsx         # role-specific UI branches
+├── UsersPage.tsx             # Admin+Operator: CRUD semua role; create klien otomatis buat Customer
+├── AuditLogPage.tsx          # Admin only
+├── ChangePasswordPage.tsx
 ├── NotFound.tsx
 ├── admin/
-│   ├── CustomersPage.tsx
+│   ├── CustomersPage.tsx     # view/edit/delete only — create via UsersPage
 │   ├── BillsPage.tsx
 │   ├── TransactionsPage.tsx
-│   └── SettingsPage.tsx
-└── kasir/
-    ├── CheckBillPage.tsx
-    └── PaymentPage.tsx
+│   └── SettingsPage.tsx      # Tariff management
+├── operator/
+│   └── MeterReadingPage.tsx  # catat meteran single & bulk via id_klien
+├── kasir/
+│   ├── CheckBillPage.tsx     # lookup via id_klien (integer input)
+│   ├── PaymentPage.tsx
+│   └── PendingRequestsPage.tsx
+└── klien/
+    ├── MyProfilePage.tsx
+    └── MyBillsPage.tsx
 ```
-
-`DashboardPage` renders different content depending on `user.role` (admin stats grid, kasir payment flow, operator meter input) — all in one file.
 
 ### UI Stack
 - shadcn/ui components live in `src/components/ui/` — regenerate via `npx shadcn@latest add <component>`, do not edit manually

@@ -3,13 +3,13 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Customer extends Model
 {
     protected $fillable = [
-        'nomor_langganan',
+        'id_klien',
         'nama',
         'alamat',
         'telepon',
@@ -29,11 +29,13 @@ class Customer extends Model
         return $this->hasMany(Bill::class);
     }
 
-    public function user(): HasOne {
-        return $this->hasOne(User::class);
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'id_klien');
     }
 
-    public function getTagihanTerakhir() {
+    public function getTagihanTerakhir()
+    {
         return $this->bills()
             ->whereIn('status', ['belum_bayar', 'menunggu_konfirmasi'])
             ->orderBy('periode', 'desc')

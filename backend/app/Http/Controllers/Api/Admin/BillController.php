@@ -17,7 +17,7 @@ class BillController extends Controller
     public function index(): JsonResponse
     {
         $bills = Bill::with(['customer' => function ($query) {
-            $query->select('id', 'nomor_langganan', 'nama', 'alamat');
+            $query->select('id', 'id_klien', 'nama', 'alamat');
         }])
         ->latest()
         ->paginate(15);

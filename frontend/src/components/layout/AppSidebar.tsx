@@ -12,6 +12,7 @@ import {
   UserCircle,
   FileText,
   UserCog,
+  Gauge,
 } from 'lucide-react';
 import {
   Sidebar,
@@ -34,6 +35,7 @@ const navItems = [
   { title: 'Kelola Akun', url: '/users', icon: UserCog, roles: ['admin', 'operator'] },
   { title: 'Kelola Pelanggan', url: '/customers', icon: Users, roles: ['admin', 'operator'] },
   { title: 'Kelola Tagihan', url: '/bills', icon: Receipt, roles: ['admin', 'operator'] },
+  { title: 'Catat Meteran', url: '/meter-reading', icon: Gauge, roles: ['admin', 'operator'] },
   { title: 'Transaksi', url: '/transactions', icon: CreditCard, roles: ['admin', 'kasir'] },
   { title: 'Cek Tagihan', url: '/kasir/check', icon: Receipt, roles: ['admin', 'kasir'] },
   { title: 'Permintaan Bayar', url: '/kasir/pending-requests', icon: Bell, roles: ['kasir'] },

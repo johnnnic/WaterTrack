@@ -12,22 +12,22 @@ import api from '@/lib/api';
 interface ApiResponse {
   customer: {
     id: number;
+    id_klien: number;
     name: string;
     address: string;
-    nomor_pelanggan: string;
     phone: string;
     status: string;
   };
   bill: {
     id: number;
-    bulan: string;
-    meteran_lama: number;
-    meteran_baru: number;
+    periode: string;
+    meteran_awal: number;
+    meteran_akhir: number;
     pemakaian: number;
     tarif_per_m3: number;
     jumlah_tagihan: number;
     tanggal_tagihan: string;
-    jatuh_tempo: string;
+    tanggal_jatuh_tempo: string;
     status: string;
   };
   amount: number;
@@ -36,7 +36,7 @@ interface ApiResponse {
 
 interface TagihanData {
   nama: string;
-  nomor_langganan: string;
+  id_klien: number;
   alamat: string;
   periode: string;
   meteran_awal: number;
@@ -63,16 +63,16 @@ const formatDate = (dateString: string): string => {
 
 export const CheckBillPage: React.FC = () => {
   const navigate = useNavigate();
-  const [nomorPelanggan, setNomorPelanggan] = useState('');
+  const [idKlien, setIdKlien] = useState('');
   const [dataTagihan, setDataTagihan] = useState<TagihanData | null>(null);
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
   const cekTagihan = async () => {
-    if (!nomorPelanggan.trim()) {
+    if (!idKlien.trim()) {
       toast({
         title: "Error",
-        description: "Harap masukkan nomor pelanggan",
+        description: "Harap masukkan ID Klien",
         variant: "destructive",
       });
       return;
@@ -81,23 +81,23 @@ export const CheckBillPage: React.FC = () => {
     setLoading(true);
     try {
       const response = await api.post('/kasir/cek-tagihan', {
-        nomor_pelanggan: nomorPelanggan,
+        id_klien: parseInt(idKlien),
       });
-      
+
       const apiData: ApiResponse = response.data;
-      
+
       // Transform API response to match TagihanData interface
       const transformedData: TagihanData = {
         nama: apiData.customer.name,
-        nomor_langganan: apiData.customer.nomor_pelanggan,
+        id_klien: apiData.customer.id_klien,
         alamat: apiData.customer.address,
-        periode: apiData.bill.bulan,
-        meteran_awal: apiData.bill.meteran_lama,
-        meteran_akhir: apiData.bill.meteran_baru,
+        periode: apiData.bill.periode,
+        meteran_awal: apiData.bill.meteran_awal,
+        meteran_akhir: apiData.bill.meteran_akhir,
         pemakaian: apiData.bill.pemakaian,
         tarif_per_m3: apiData.bill.tarif_per_m3,
         jumlah_tagihan: apiData.bill.jumlah_tagihan,
-        tanggal_jatuh_tempo: apiData.bill.jatuh_tempo,
+        tanggal_jatuh_tempo: apiData.bill.tanggal_jatuh_tempo,
         status: apiData.bill.status
       };
       
@@ -125,7 +125,7 @@ export const CheckBillPage: React.FC = () => {
   };
 
   const resetForm = () => {
-    setNomorPelanggan('');
+    setIdKlien('');
     setDataTagihan(null);
   };
 
@@ -134,7 +134,7 @@ export const CheckBillPage: React.FC = () => {
     
     // Simpan data tagihan ke localStorage untuk digunakan di halaman pembayaran
     localStorage.setItem('kasir_tagihan_data', JSON.stringify({
-      nomor_pelanggan: nomorPelanggan,
+      id_klien: parseInt(idKlien),
       tagihan: dataTagihan
     }));
     
@@ -163,19 +163,20 @@ export const CheckBillPage: React.FC = () => {
         <CardHeader>
           <CardTitle>Pencarian Tagihan</CardTitle>
           <CardDescription>
-            Masukkan nomor pelanggan untuk melihat tagihan yang belum dibayar
+            Masukkan ID Klien untuk melihat tagihan yang belum dibayar
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="nomor_pelanggan">Nomor Pelanggan</Label>
+            <Label htmlFor="id_klien">ID Klien</Label>
             <div className="flex gap-2">
               <Input
-                id="nomor_pelanggan"
-                value={nomorPelanggan}
-                onChange={(e) => setNomorPelanggan(e.target.value)}
+                id="id_klien"
+                type="number"
+                value={idKlien}
+                onChange={(e) => setIdKlien(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Masukkan nomor pelanggan (PLG001)"
+                placeholder="Masukkan ID Klien (contoh: 4)"
                 className="flex-1"
               />
               <Button
@@ -221,8 +222,8 @@ export const CheckBillPage: React.FC = () => {
                   <span className="font-medium text-foreground">{dataTagihan.nama}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">No. Pelanggan:</span>
-                  <span className="font-medium text-foreground">{dataTagihan.nomor_langganan}</span>
+                  <span className="text-muted-foreground">ID Klien:</span>
+                  <span className="font-medium text-foreground">KLN-{dataTagihan.id_klien}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Alamat:</span>
@@ -232,8 +233,12 @@ export const CheckBillPage: React.FC = () => {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Status:</span>
-                  <Badge variant={dataTagihan.status === 'unpaid' ? 'destructive' : 'default'}>
-                    {dataTagihan.status === 'unpaid' ? 'Belum Bayar' : 'Sudah Bayar'}
+                  <Badge variant={dataTagihan.status === 'belum_bayar' ? 'destructive' : 'default'}>
+                    {dataTagihan.status === 'belum_bayar'
+                      ? 'Belum Bayar'
+                      : dataTagihan.status === 'menunggu_konfirmasi'
+                      ? 'Menunggu Konfirmasi'
+                      : 'Sudah Bayar'}
                   </Badge>
                 </div>
               </div>

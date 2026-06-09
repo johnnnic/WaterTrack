@@ -26,6 +26,9 @@ import { CheckBillPage } from "@/pages/kasir/CheckBillPage";
 import { PaymentPage } from "@/pages/kasir/PaymentPage";
 import { PendingRequestsPage } from "@/pages/kasir/PendingRequestsPage";
 
+// Operator Pages
+import { MeterReadingPage } from "@/pages/operator/MeterReadingPage";
+
 // Klien Pages
 import { MyProfilePage } from "@/pages/klien/MyProfilePage";
 import { MyBillsPage } from "@/pages/klien/MyBillsPage";
@@ -91,6 +94,14 @@ const App = () => (
                 element={
                   <ProtectedRoute allowedRoles={['admin', 'operator']}>
                     <BillsPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="meter-reading"
+                element={
+                  <ProtectedRoute allowedRoles={['admin', 'operator']}>
+                    <MeterReadingPage />
                   </ProtectedRoute>
                 }
               />

@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
 import api from '@/lib/api';
 import ExcelJS from 'exceljs';
 
@@ -25,9 +26,10 @@ interface Bill {
   tanggal_jatuh_tempo: string;
   created_at: string;
   updated_at: string;
+  status: 'belum_bayar' | 'menunggu_konfirmasi' | 'sudah_bayar';
   customer: {
     id: number;
-    nomor_langganan: string;
+    id_klien: number;
     nama: string;
     alamat: string;
   };
@@ -35,7 +37,7 @@ interface Bill {
 
 interface Customer {
   id: number;
-  nomor_langganan: string;
+  id_klien: number;
   nama: string;
   alamat: string;
   meteran_terakhir: number;
@@ -65,6 +67,9 @@ const formatDate = (dateString: string): string => {
 };
 
 export const BillsPage: React.FC = () => {
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
+  const apiBase = isAdmin ? '/admin' : '/operator';
   const [bills, setBills] = useState<Bill[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -91,7 +96,7 @@ export const BillsPage: React.FC = () => {
 
   const fetchCustomers = async () => {
     try {
-      const response = await api.get('/admin/customers');
+      const response = await api.get(`${apiBase}/customers`);
       setCustomers(response.data.data || response.data);
     } catch (error: any) {
       toast({
@@ -105,7 +110,7 @@ export const BillsPage: React.FC = () => {
   const fetchBills = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/admin/bills');
+      const response = await api.get(`${apiBase}/bills`);
       const billsData = response.data.data || response.data;
       console.log('Bills data received:', billsData); // Debug log
       setBills(billsData);
@@ -193,7 +198,7 @@ export const BillsPage: React.FC = () => {
     try {
       setGenerateLoading(true);
       
-      await api.post('/admin/bills', generateForm);
+      await api.post(`${apiBase}/bills`, generateForm);
       
       toast({
         title: "Berhasil",
@@ -245,7 +250,7 @@ export const BillsPage: React.FC = () => {
         <hr />
         <p><strong>Periode:</strong> ${bill.periode}</p>
         <p><strong>Nama Pelanggan:</strong> ${bill.customer.nama}</p>
-        <p><strong>Nomor Pelanggan:</strong> ${bill.customer.nomor_langganan}</p>
+        <p><strong>ID Klien:</strong> KLN-${bill.customer.id_klien}</p>
         <p><strong>Alamat:</strong> ${bill.customer.alamat}</p>
         <hr />
         <p><strong>Meteran Awal:</strong> ${bill.meteran_awal} m³</p>
@@ -273,7 +278,7 @@ export const BillsPage: React.FC = () => {
       const exportData = filteredBills.map((bill, index) => ({
         'No': index + 1,
         'Periode': bill.periode,
-        'Nomor Pelanggan': bill.customer.nomor_langganan,
+        'ID Klien': `KLN-${bill.customer.id_klien}`,
         'Nama Pelanggan': bill.customer.nama,
         'Alamat': bill.customer.alamat,
         'Meteran Awal (m³)': bill.meteran_awal,
@@ -291,7 +296,7 @@ export const BillsPage: React.FC = () => {
       worksheet.columns = [
         { header: 'No', key: 'No', width: 5 },
         { header: 'Periode', key: 'Periode', width: 10 },
-        { header: 'Nomor Pelanggan', key: 'Nomor Pelanggan', width: 15 },
+        { header: 'ID Klien', key: 'ID Klien', width: 12 },
         { header: 'Nama Pelanggan', key: 'Nama Pelanggan', width: 25 },
         { header: 'Alamat', key: 'Alamat', width: 30 },
         { header: 'Meteran Awal (m³)', key: 'Meteran Awal (m³)', width: 12 },
@@ -340,7 +345,7 @@ export const BillsPage: React.FC = () => {
   const filteredBills = bills.filter(bill => {
     const matchesSearch = 
       bill.customer.nama.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      bill.customer.nomor_langganan.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      String(bill.customer.id_klien).includes(searchTerm) ||
       bill.periode.includes(searchTerm);
     
     const matchesStatus = statusFilter === 'all' || bill.status === statusFilter;
@@ -493,7 +498,7 @@ export const BillsPage: React.FC = () => {
                 <TableRow>
                   <TableHead>Periode</TableHead>
                   <TableHead>Pelanggan</TableHead>
-                  <TableHead>No. Pelanggan</TableHead>
+                  <TableHead>ID Klien</TableHead>
                   <TableHead>Pemakaian</TableHead>
                   <TableHead>Tarif/m³</TableHead>
                   <TableHead>Jumlah Tagihan</TableHead>
@@ -509,7 +514,7 @@ export const BillsPage: React.FC = () => {
                       {bill.periode}
                     </TableCell>
                     <TableCell>{bill.customer.nama}</TableCell>
-                    <TableCell>{bill.customer.nomor_langganan}</TableCell>
+                    <TableCell>KLN-{bill.customer.id_klien}</TableCell>
                     <TableCell>
                       <div className="text-sm">
                         <div>{bill.pemakaian} m³</div>
@@ -523,10 +528,14 @@ export const BillsPage: React.FC = () => {
                       {formatRupiah(bill.jumlah_tagihan)}
                     </TableCell>
                     <TableCell>
-                      <Badge 
-                        variant={bill.status === 'sudah_bayar' ? 'default' : 'destructive'}
+                      <Badge
+                        variant={
+                          bill.status === 'sudah_bayar' ? 'default' :
+                          bill.status === 'menunggu_konfirmasi' ? 'secondary' : 'destructive'
+                        }
                       >
-                        {bill.status === 'sudah_bayar' ? 'Sudah Bayar' : 'Belum Bayar'}
+                        {bill.status === 'sudah_bayar' ? 'Sudah Bayar' :
+                         bill.status === 'menunggu_konfirmasi' ? 'Menunggu Konfirmasi' : 'Belum Bayar'}
                       </Badge>
                     </TableCell>
                     <TableCell>
@@ -592,7 +601,7 @@ export const BillsPage: React.FC = () => {
                 <SelectContent>
                   {customers.map(customer => (
                     <SelectItem key={customer.id} value={customer.id.toString()}>
-                      {customer.nomor_langganan} - {customer.nama}
+                      KLN-{customer.id_klien} — {customer.nama}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -723,8 +732,8 @@ export const BillsPage: React.FC = () => {
                   <p className="text-sm text-muted-foreground">{selectedBill.customer.nama}</p>
                 </div>
                 <div>
-                  <Label className="text-sm font-medium">Nomor Pelanggan</Label>
-                  <p className="text-sm text-muted-foreground">{selectedBill.customer.nomor_langganan}</p>
+                  <Label className="text-sm font-medium">ID Klien</Label>
+                  <p className="text-sm text-muted-foreground">KLN-{selectedBill.customer.id_klien}</p>
                 </div>
                 <div>
                   <Label className="text-sm font-medium">Alamat</Label>

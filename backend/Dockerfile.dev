@@ -1,26 +1,18 @@
 FROM php:8.2-fpm-alpine
 
-# Build deps untuk phpize-based extensions (redis via pecl)
-RUN apk add --no-cache \
-    libpng-dev \
-    libzip-dev \
-    oniguruma-dev \
+# install-php-extensions uses pre-compiled binaries on Alpine — much faster than pecl compile
+COPY --from=mlocati/php-extension-installer:2 /usr/bin/install-php-extensions /usr/bin/
+
+RUN install-php-extensions \
+    pdo_mysql \
+    mbstring \
+    exif \
+    pcntl \
+    bcmath \
+    gd \
     zip \
-    unzip \
-    curl \
-    linux-headers \
-    $PHPIZE_DEPS \
-    && docker-php-ext-install \
-        pdo_mysql \
-        mbstring \
-        exif \
-        pcntl \
-        bcmath \
-        gd \
-        zip \
-    && pecl install redis \
-    && docker-php-ext-enable redis opcache \
-    && apk del $PHPIZE_DEPS linux-headers
+    redis \
+    opcache
 
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
