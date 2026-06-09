@@ -12,7 +12,6 @@ import api from '@/lib/api';
 interface Tariff {
   id: number;
   golongan: string;
-  daya_listrik: string;
   harga_per_m3: number;
   created_at: string;
   updated_at: string;
@@ -20,7 +19,6 @@ interface Tariff {
 
 interface TariffForm {
   golongan: string;
-  daya_listrik: string;
   harga_per_m3: number;
 }
 
@@ -42,7 +40,6 @@ export const SettingsPage: React.FC = () => {
 
   const [tariffForm, setTariffForm] = useState<TariffForm>({
     golongan: '',
-    daya_listrik: '',
     harga_per_m3: 5000,
   });
 
@@ -89,7 +86,7 @@ export const SettingsPage: React.FC = () => {
         });
       }
       
-      setTariffForm({ golongan: '', daya_listrik: '', harga_per_m3: 5000 });
+      setTariffForm({ golongan: '', harga_per_m3: 5000 });
       setEditingTariff(null);
       setShowAddForm(false);
       fetchTariffs();
@@ -105,7 +102,6 @@ export const SettingsPage: React.FC = () => {
   const handleEditTariff = (tariff: Tariff) => {
     setTariffForm({
       golongan: tariff.golongan,
-      daya_listrik: tariff.daya_listrik,
       harga_per_m3: tariff.harga_per_m3,
     });
     setEditingTariff(tariff);
@@ -196,7 +192,7 @@ export const SettingsPage: React.FC = () => {
               </CardHeader>
               <CardContent>
                 <form onSubmit={handleSubmitTariff} className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="golongan">
                         Golongan <span className="text-red-400">*</span>
@@ -209,17 +205,7 @@ export const SettingsPage: React.FC = () => {
                         required
                       />
                     </div>
-                    
-                    <div className="space-y-2">
-                      <Label htmlFor="daya_listrik">Daya Listrik</Label>
-                      <Input
-                        id="daya_listrik"
-                        value={tariffForm.daya_listrik}
-                        onChange={(e) => setTariffForm(prev => ({ ...prev, daya_listrik: e.target.value }))}
-                        placeholder="900 VA, 1300 VA, dll"
-                      />
-                    </div>
-                    
+
                     <div className="space-y-2">
                       <Label htmlFor="harga_per_m3">
                         Harga per m³ (Rp) <span className="text-red-400">*</span>
@@ -268,7 +254,6 @@ export const SettingsPage: React.FC = () => {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Golongan</TableHead>
-                      <TableHead>Daya Listrik</TableHead>
                       <TableHead>Harga per m³</TableHead>
                       <TableHead>Dibuat</TableHead>
                       <TableHead>Aksi</TableHead>
@@ -279,9 +264,6 @@ export const SettingsPage: React.FC = () => {
                       <TableRow key={tariff.id}>
                         <TableCell className="font-medium">
                           {tariff.golongan}
-                        </TableCell>
-                        <TableCell>
-                          {tariff.daya_listrik || '-'}
                         </TableCell>
                         <TableCell className="font-medium text-gold">
                           {formatRupiah(tariff.harga_per_m3)}

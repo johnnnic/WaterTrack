@@ -106,7 +106,7 @@ const App = () => (
                 }
               />
 
-              {/* Admin only */}
+              {/* Admin + Kasir */}
               <Route
                 path="transactions"
                 element={

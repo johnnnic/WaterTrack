@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
 import api from '@/lib/api';
 import ExcelJS from 'exceljs';
 
@@ -27,7 +28,7 @@ interface Payment {
     periode: string;
     customer: {
       id: number;
-      nomor_langganan: string;
+      id_klien: number;
       nama: string;
     };
   };
@@ -56,12 +57,15 @@ const formatDate = (dateString: string): string => {
 };
 
 export const TransactionsPage: React.FC = () => {
+  const { user } = useAuth();
+  const apiBase = user?.role === 'kasir' ? '/kasir' : '/admin';
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [metodePembayaranFilter, setMetodePembayaranFilter] = useState<string>('all');
   const [dateFilter, setDateFilter] = useState<string>('all');
   const { toast } = useToast();
+  const [apiStats, setApiStats] = useState({ total_payments: 0, today_payments: 0, total_amount: 0, today_amount: 0 });
 
   // Detail Modal State
   const [detailModalOpen, setDetailModalOpen] = useState(false);
@@ -75,8 +79,7 @@ export const TransactionsPage: React.FC = () => {
   const fetchPayments = async () => {
     try {
       setLoading(true);
-      // We'll need to create this endpoint or modify existing ones to get payments with relations
-      const response = await api.get('/admin/payments');
+      const response = await api.get(`${apiBase}/payments`);
       setPayments(response.data.data || response.data);
     } catch (error: any) {
       toast({
@@ -89,6 +92,15 @@ export const TransactionsPage: React.FC = () => {
     }
   };
 
+  const fetchStats = async () => {
+    try {
+      const response = await api.get(`${apiBase}/payments/stats`);
+      setApiStats(response.data);
+    } catch {
+      // silently fail — stats non-critical
+    }
+  };
+
   // Export Excel Function
   const exportToExcel = async () => {
     try {
@@ -96,7 +108,7 @@ export const TransactionsPage: React.FC = () => {
         'No': index + 1,
         'Tanggal': formatDate(payment.tanggal_bayar),
         'Waktu': formatDateTime(payment.tanggal_bayar),
-        'Nomor Pelanggan': payment.bill.customer.nomor_langganan,
+        'Nomor Pelanggan': `KLN-${payment.bill.customer.id_klien}`,
         'Nama Pelanggan': payment.bill.customer.nama,
         'Periode Tagihan': payment.bill.periode,
         'Jumlah Bayar': payment.jumlah_bayar,
@@ -176,7 +188,7 @@ export const TransactionsPage: React.FC = () => {
         
         <div style="border-bottom: 1px solid #ddd; padding-bottom: 10px; margin-bottom: 10px;">
           <p><strong>Pelanggan:</strong> ${payment.bill.customer.nama}</p>
-          <p><strong>No. Pelanggan:</strong> ${payment.bill.customer.nomor_langganan}</p>
+          <p><strong>No. Pelanggan:</strong> ${`KLN-${payment.bill.customer.id_klien}`}</p>
           <p><strong>Periode:</strong> ${payment.bill.periode}</p>
         </div>
         
@@ -210,14 +222,16 @@ export const TransactionsPage: React.FC = () => {
 
   const closeFilterModal = () => {
     setFilterModalOpen(false);
+    // JANGAN reset startDate/endDate di sini
+  };
+
+  const clearDateFilter = () => {
     setStartDate('');
     setEndDate('');
   };
 
   const applyDateRangeFilter = () => {
-    // This would modify the filteredPayments logic
-    // For now, we'll just close the modal
-    closeFilterModal();
+    setFilterModalOpen(false);
     toast({
       title: "Filter Diterapkan",
       description: `Filter tanggal dari ${startDate} sampai ${endDate}`,
@@ -226,12 +240,13 @@ export const TransactionsPage: React.FC = () => {
 
   useEffect(() => {
     fetchPayments();
+    fetchStats();
   }, []);
 
   const filteredPayments = payments.filter(payment => {
     const matchesSearch = 
       payment.bill.customer.nama.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      payment.bill.customer.nomor_langganan.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      `KLN-${payment.bill.customer.id_klien}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
       payment.bill.periode.includes(searchTerm) ||
       payment.user.name.toLowerCase().includes(searchTerm.toLowerCase());
     
@@ -311,34 +326,34 @@ export const TransactionsPage: React.FC = () => {
         <Card>
           <CardContent className="p-4">
             <div className="text-center">
-              <p className="text-2xl font-bold text-foreground">{stats.total}</p>
+              <p className="text-2xl font-bold text-foreground">{apiStats.total_payments}</p>
               <p className="text-sm text-muted-foreground">Total Transaksi</p>
             </div>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardContent className="p-4">
             <div className="text-center">
-              <p className="text-2xl font-bold text-blue-400">{stats.today}</p>
+              <p className="text-2xl font-bold text-blue-400">{apiStats.today_payments}</p>
               <p className="text-sm text-muted-foreground">Transaksi Hari Ini</p>
             </div>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardContent className="p-4">
             <div className="text-center">
-              <p className="text-lg font-bold text-gold">{formatRupiah(stats.totalAmount)}</p>
+              <p className="text-lg font-bold text-gold">{formatRupiah(apiStats.total_amount)}</p>
               <p className="text-sm text-muted-foreground">Total Nilai</p>
             </div>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardContent className="p-4">
             <div className="text-center">
-              <p className="text-lg font-bold text-green-400">{formatRupiah(stats.todayAmount)}</p>
+              <p className="text-lg font-bold text-green-400">{formatRupiah(apiStats.today_amount)}</p>
               <p className="text-sm text-muted-foreground">Nilai Hari Ini</p>
             </div>
           </CardContent>
@@ -437,7 +452,7 @@ export const TransactionsPage: React.FC = () => {
                       </div>
                     </TableCell>
                     <TableCell>{payment.bill.customer.nama}</TableCell>
-                    <TableCell>{payment.bill.customer.nomor_langganan}</TableCell>
+                    <TableCell>{`KLN-${payment.bill.customer.id_klien}`}</TableCell>
                     <TableCell>{payment.bill.periode}</TableCell>
                     <TableCell className="font-medium text-gold">
                       {formatRupiah(payment.jumlah_bayar)}
@@ -516,7 +531,7 @@ export const TransactionsPage: React.FC = () => {
                 </div>
                 <div>
                   <Label className="text-sm font-medium">Nomor Pelanggan</Label>
-                  <p className="text-sm text-muted-foreground">{selectedPayment.bill.customer.nomor_langganan}</p>
+                  <p className="text-sm text-muted-foreground">{`KLN-${selectedPayment.bill.customer.id_klien}`}</p>
                 </div>
                 <div>
                   <Label className="text-sm font-medium">Periode Tagihan</Label>
@@ -601,7 +616,7 @@ export const TransactionsPage: React.FC = () => {
             <Button
               type="button"
               variant="outline"
-              onClick={closeFilterModal}
+              onClick={() => { closeFilterModal(); clearDateFilter(); }}
             >
               Batal
             </Button>

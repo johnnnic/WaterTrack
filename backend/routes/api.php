@@ -13,6 +13,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::put('/user/password', [AuthController::class, 'changePassword']);
     Route::get('/user', fn(Request $r) => $r->user());
+    Route::get('/tariffs', [\App\Http\Controllers\Api\Admin\TariffController::class, 'index']);
 
     // Kasir + Admin routes
     Route::middleware('role:admin,kasir')->prefix('kasir')->group(function () {
@@ -21,6 +22,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/unpaid-bills', [KasirController::class, 'unpaidBills']);
         Route::get('/pending-requests', [KasirController::class, 'pendingRequests']);
         Route::put('/bills/{bill}/confirm', [KasirController::class, 'confirmPayment']);
+        Route::get('/payments/stats', [KasirController::class, 'paymentStats']);
         Route::get('/payments', [KasirController::class, 'payments']);
         Route::get('/payments/{payment}', [KasirController::class, 'showPayment']);
         Route::put('/payments/{payment}', [KasirController::class, 'updatePayment']);

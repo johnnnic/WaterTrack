@@ -92,7 +92,7 @@ volumes:
 #   docker compose exec frontend npm install
 #
 # Akses:
-#   Frontend : http://localhost:8080
+#   Frontend : http://localhost:3000
 #   Backend  : http://localhost:8000
 #   MySQL    : localhost:3306  user=watertrack  pass=secret  db=water_billing
 #   Artisan  : docker compose exec backend php artisan <command>

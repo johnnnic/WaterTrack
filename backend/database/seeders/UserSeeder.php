@@ -2,6 +2,7 @@
 namespace Database\Seeders;
 
 use App\Models\Customer;
+use App\Models\Tariff;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 
@@ -31,6 +32,9 @@ class UserSeeder extends Seeder {
             'password_changed_at' => now(),
         ]);
 
+        $tariffResidental = Tariff::where('golongan', 'Residental')->firstOrFail();
+        $tariffKantor     = Tariff::where('golongan', 'Kantor')->firstOrFail();
+
         $klien1 = User::create([
             'name'     => 'Budi Santoso',
             'email'    => 'budi@example.com',
@@ -44,7 +48,8 @@ class UserSeeder extends Seeder {
             'alamat'                => 'Jl. Merdeka No. 10, Jakarta',
             'telepon'               => '081234567890',
             'status'                => 'aktif',
-            'tarif_per_m3'          => 5000,
+            'tariff_id'             => $tariffResidental->id,
+            'tarif_per_m3'          => $tariffResidental->harga_per_m3,
             'meteran_terakhir'      => 120,
             'tanggal_baca_terakhir' => now()->subMonth(),
         ]);
@@ -61,7 +66,8 @@ class UserSeeder extends Seeder {
             'alamat'                => 'Jl. Sudirman No. 25, Bandung',
             'telepon'               => '087654321099',
             'status'                => 'aktif',
-            'tarif_per_m3'          => 6000,
+            'tariff_id'             => $tariffKantor->id,
+            'tarif_per_m3'          => $tariffKantor->harga_per_m3,
             'meteran_terakhir'      => 85,
             'tanggal_baca_terakhir' => now()->subMonth(),
         ]);

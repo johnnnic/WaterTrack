@@ -22,6 +22,8 @@ interface Customer {
   telepon: string;
   status: 'aktif' | 'nonaktif';
   tarif_per_m3: number;
+  tariff_id: number | null;
+  tariff?: { id: number; golongan: string; harga_per_m3: number } | null;
   meteran_terakhir: number;
   tanggal_baca_terakhir: string;
   created_at: string;
@@ -33,7 +35,7 @@ interface EditCustomerForm {
   alamat: string;
   telepon: string;
   status: 'aktif' | 'nonaktif';
-  tarif_per_m3: number;
+  tariff_id: number | null;
   meteran_terakhir: number;
 }
 
@@ -56,6 +58,7 @@ export const CustomersPage: React.FC = () => {
   const isAdmin = user?.role === 'admin';
   const apiBase = isAdmin ? '/admin' : '/operator';
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [tariffs, setTariffs] = useState<{ id: number; golongan: string; harga_per_m3: number }[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const { toast } = useToast();
@@ -69,7 +72,7 @@ export const CustomersPage: React.FC = () => {
     alamat: '',
     telepon: '',
     status: 'aktif',
-    tarif_per_m3: 5000,
+    tariff_id: null,
     meteran_terakhir: 0,
   });
 
@@ -119,7 +122,7 @@ export const CustomersPage: React.FC = () => {
       alamat: customer.alamat,
       telepon: customer.telepon || '',
       status: customer.status,
-      tarif_per_m3: customer.tarif_per_m3,
+      tariff_id: customer.tariff_id ?? null,
       meteran_terakhir: customer.meteran_terakhir,
     });
     setEditModalOpen(true);
@@ -133,7 +136,7 @@ export const CustomersPage: React.FC = () => {
       alamat: '',
       telepon: '',
       status: 'aktif',
-      tarif_per_m3: 5000,
+      tariff_id: null,
       meteran_terakhir: 0,
     });
   };
@@ -197,6 +200,7 @@ export const CustomersPage: React.FC = () => {
 
   useEffect(() => {
     fetchCustomers();
+    api.get('/tariffs').then(r => setTariffs(r.data)).catch(() => {});
   }, []);
 
   const filteredCustomers = customers.filter(customer =>
@@ -307,7 +311,7 @@ export const CustomersPage: React.FC = () => {
                         {customer.status}
                       </Badge>
                     </TableCell>
-                    <TableCell>{formatRupiah(customer.tarif_per_m3)}</TableCell>
+                    <TableCell>{customer.tariff?.golongan ?? '-'}</TableCell>
                     <TableCell>{customer.meteran_terakhir} m³</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
@@ -415,17 +419,25 @@ export const CustomersPage: React.FC = () => {
               </Select>
             </div>
 
-            {/* Tarif per m3 */}
+            {/* Golongan Tariff */}
             <div className="space-y-2">
-              <Label htmlFor="edit_tarif_per_m3">Tarif per m³ (Rp)</Label>
-              <Input
-                id="edit_tarif_per_m3"
-                type="number"
-                value={editForm.tarif_per_m3}
-                onChange={(e) => handleEditInputChange('tarif_per_m3', parseInt(e.target.value) || 0)}
-                placeholder="5000"
-                min="0"
-              />
+              <Label>Golongan Tariff</Label>
+              <Select
+                value={String(editForm.tariff_id ?? '')}
+                onValueChange={v => setEditForm(p => ({ ...p, tariff_id: v === '' ? null : parseInt(v) }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Pilih golongan tariff" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">— Tidak ada —</SelectItem>
+                  {tariffs.map(t => (
+                    <SelectItem key={t.id} value={String(t.id)}>
+                      {t.golongan} — {formatRupiah(t.harga_per_m3)}/m³
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             {/* Meteran Terakhir */}

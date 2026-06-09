@@ -3,6 +3,7 @@ namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Customer;
+use App\Models\Tariff;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -26,13 +27,18 @@ class UserController extends Controller {
             'role'         => 'required|in:admin,operator,kasir,klien',
             'alamat'       => 'required_if:role,klien|string',
             'telepon'      => 'nullable|string',
-            'tarif_per_m3' => 'required_if:role,klien|numeric|min:0',
+            'tariff_id'    => 'required_if:role,klien|exists:tariffs,id',
             'meteran_awal' => 'required_if:role,klien|integer|min:0',
         ]);
         if ($v->fails()) return response()->json(['errors' => $v->errors()], 422);
 
         if ($request->role === 'klien') {
-            $user = DB::transaction(function () use ($request) {
+            $tariff = Tariff::find($request->tariff_id);
+            if (!$tariff) {
+                return response()->json(['message' => 'Tarif tidak ditemukan.'], 422);
+            }
+
+            $user = DB::transaction(function () use ($request, $tariff) {
                 $user = User::create([
                     'name'     => $request->name,
                     'email'    => $request->email,
@@ -46,7 +52,8 @@ class UserController extends Controller {
                     'alamat'                => $request->alamat,
                     'telepon'               => $request->telepon,
                     'status'                => 'aktif',
-                    'tarif_per_m3'          => $request->tarif_per_m3,
+                    'tariff_id'             => $tariff->id,
+                    'tarif_per_m3'          => $tariff->harga_per_m3,
                     'meteran_terakhir'      => $request->meteran_awal,
                     'tanggal_baca_terakhir' => now(),
                 ]);

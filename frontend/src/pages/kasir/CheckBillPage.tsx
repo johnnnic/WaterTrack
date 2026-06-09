@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Receipt, User, Calendar, DollarSign } from 'lucide-react';
+import { Search, Receipt, User, Calendar, DollarSign, Clock, ArrowRight } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,9 +13,9 @@ interface ApiResponse {
   customer: {
     id: number;
     id_klien: number;
-    name: string;
-    address: string;
-    phone: string;
+    nama: string;
+    alamat: string;
+    telepon: string;
     status: string;
   };
   bill: {
@@ -26,7 +26,6 @@ interface ApiResponse {
     pemakaian: number;
     tarif_per_m3: number;
     jumlah_tagihan: number;
-    tanggal_tagihan: string;
     tanggal_jatuh_tempo: string;
     status: string;
   };
@@ -88,9 +87,9 @@ export const CheckBillPage: React.FC = () => {
 
       // Transform API response to match TagihanData interface
       const transformedData: TagihanData = {
-        nama: apiData.customer.name,
+        nama: apiData.customer.nama,
         id_klien: apiData.customer.id_klien,
-        alamat: apiData.customer.address,
+        alamat: apiData.customer.alamat,
         periode: apiData.bill.periode,
         meteran_awal: apiData.bill.meteran_awal,
         meteran_akhir: apiData.bill.meteran_akhir,
@@ -286,7 +285,41 @@ export const CheckBillPage: React.FC = () => {
       )}
 
       {/* Payment Summary */}
-      {dataTagihan && (
+      {dataTagihan && dataTagihan.status === 'menunggu_konfirmasi' && (
+        <Card className="border-yellow-500/50 bg-yellow-950/20">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-yellow-400">
+              <Clock className="h-6 w-6" />
+              Menunggu Konfirmasi Kasir
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between">
+              <div className="space-y-1">
+                <p className="text-sm text-muted-foreground">Total Tagihan</p>
+                <p className="text-3xl font-bold text-yellow-400">
+                  {formatRupiah(dataTagihan.jumlah_tagihan)}
+                </p>
+                <p className="text-sm text-yellow-400/70 mt-1">
+                  Klien sudah mengajukan pembayaran. Konfirmasi di halaman Permintaan Pembayaran.
+                </p>
+              </div>
+              <div className="text-right">
+                <Button
+                  size="lg"
+                  className="bg-yellow-500 text-black hover:bg-yellow-400 text-base px-6 py-3"
+                  onClick={() => navigate('/kasir/pending-requests')}
+                >
+                  <ArrowRight className="h-5 w-5 mr-2" />
+                  Ke Permintaan Pembayaran
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {dataTagihan && dataTagihan.status === 'belum_bayar' && (
         <Card className="border-gold bg-gradient-to-r from-brown-dark/50 to-gold/10">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-gold">
@@ -305,9 +338,8 @@ export const CheckBillPage: React.FC = () => {
                   {dataTagihan.pemakaian} m³ × {formatRupiah(dataTagihan.tarif_per_m3)}
                 </p>
               </div>
-              
               <div className="text-right">
-                <Button 
+                <Button
                   size="lg"
                   className="bg-gradient-gold text-black hover:shadow-gold text-lg px-8 py-3"
                   onClick={navigateToPayment}

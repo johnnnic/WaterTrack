@@ -22,7 +22,6 @@ interface Bill {
   pemakaian: number;
   tarif_per_m3: number;
   jumlah_tagihan: number;
-  status: 'belum_bayar' | 'sudah_bayar';
   tanggal_jatuh_tempo: string;
   created_at: string;
   updated_at: string;

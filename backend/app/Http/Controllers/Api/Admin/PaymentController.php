@@ -7,6 +7,7 @@ use App\Models\Payment;
 use App\Models\Bill;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 
 class PaymentController extends Controller
@@ -21,7 +22,7 @@ class PaymentController extends Controller
                 $query->select('id', 'customer_id', 'periode');
             },
             'bill.customer' => function ($query) {
-                $query->select('id', 'nomor_langganan', 'nama');
+                $query->select('id', 'id_klien', 'nama');
             },
             'user' => function ($query) {
                 $query->select('id', 'name', 'role');
@@ -50,18 +51,22 @@ class PaymentController extends Controller
         }
 
         $data = $validator->validated();
-        $data['user_id'] = auth()->id();
-        $data['tanggal_bayar'] = now();
 
-        $payment = Payment::create($data);
+        return DB::transaction(function () use ($data) {
+            $bill = Bill::lockForUpdate()->findOrFail($data['bill_id']);
+            if ($bill->status === 'sudah_bayar') {
+                return response()->json(['message' => 'Tagihan sudah lunas, tidak dapat membuat pembayaran baru.'], 422);
+            }
 
-        // Update bill status to paid
-        $bill = Bill::find($data['bill_id']);
-        $bill->update(['status' => 'sudah_bayar']);
+            $data['user_id'] = auth()->id();
+            $data['tanggal_bayar'] = now();
 
-        $payment->load('bill.customer', 'user');
+            $payment = Payment::create($data);
+            $bill->update(['status' => 'sudah_bayar']);
+            $payment->load('bill.customer', 'user');
 
-        return response()->json($payment, 201);
+            return response()->json($payment, 201);
+        });
     }
 
     /**
@@ -99,12 +104,18 @@ class PaymentController extends Controller
      */
     public function destroy(Payment $payment): JsonResponse
     {
-        // Update bill status back to unpaid
-        $payment->bill->update(['status' => 'belum_bayar']);
-        
-        $payment->delete();
-        
-        return response()->json(['message' => 'Payment deleted successfully']);
+        return DB::transaction(function () use ($payment) {
+            $bill = $payment->bill;
+            if (!$bill) {
+                return response()->json(['message' => 'Tagihan terkait tidak ditemukan.'], 404);
+            }
+            $bill->update([
+                'status'                      => 'belum_bayar',
+                'requested_metode_pembayaran' => null,
+            ]);
+            $payment->delete();
+            return response()->json(['message' => 'Pembayaran dihapus, tagihan dikembalikan ke belum bayar.']);
+        });
     }
 
     /**
@@ -134,7 +145,7 @@ class PaymentController extends Controller
     {
         $recentPayments = Payment::with([
             'bill.customer' => function ($query) {
-                $query->select('id', 'nomor_langganan', 'nama');
+                $query->select('id', 'id_klien', 'nama');
             },
             'user' => function ($query) {
                 $query->select('id', 'name');

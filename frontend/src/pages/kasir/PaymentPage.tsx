@@ -7,29 +7,27 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import api from '@/lib/api';
 
 interface ApiResponse {
   customer: {
     id: number;
-    name: string;
-    address: string;
-    nomor_pelanggan: string;
-    phone: string;
+    id_klien: number;
+    nama: string;
+    alamat: string;
+    telepon: string;
     status: string;
   };
   bill: {
     id: number;
-    bulan: string;
-    meteran_lama: number;
-    meteran_baru: number;
+    periode: string;
+    meteran_awal: number;
+    meteran_akhir: number;
     pemakaian: number;
     tarif_per_m3: number;
     jumlah_tagihan: number;
-    tanggal_tagihan: string;
-    jatuh_tempo: string;
+    tanggal_jatuh_tempo: string;
     status: string;
   };
   amount: number;
@@ -38,7 +36,7 @@ interface ApiResponse {
 
 interface TagihanData {
   nama: string;
-  nomor_langganan: string;
+  id_klien: number;
   alamat: string;
   periode: string;
   pemakaian: number;
@@ -48,7 +46,7 @@ interface TagihanData {
 }
 
 interface PaymentForm {
-  nomor_pelanggan: string;
+  id_klien: number;
   jumlah_bayar: number;
   metode_pembayaran: string;
   keterangan: string;
@@ -70,13 +68,13 @@ const formatDate = (dateString: string): string => {
 export const PaymentPage: React.FC = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  
+
   const [step, setStep] = useState<'search' | 'payment' | 'success'>('search');
   const [loading, setLoading] = useState(false);
-  const [nomorPelanggan, setNomorPelanggan] = useState('');
+  const [idKlienInput, setIdKlienInput] = useState('');
   const [dataTagihan, setDataTagihan] = useState<TagihanData | null>(null);
   const [paymentForm, setPaymentForm] = useState<PaymentForm>({
-    nomor_pelanggan: '',
+    id_klien: 0,
     jumlah_bayar: 0,
     metode_pembayaran: 'tunai',
     keterangan: '',
@@ -85,14 +83,14 @@ export const PaymentPage: React.FC = () => {
   const metodePembayaran = [
     { value: 'tunai', label: 'Tunai' },
     { value: 'transfer', label: 'Transfer Bank' },
-    { value: 'kartu', label: 'Kartu Debit/Kredit' }
+    { value: 'kartu', label: 'Kartu Debit/Kredit' },
   ];
 
   const cekTagihan = async () => {
-    if (!nomorPelanggan.trim()) {
+    if (!idKlienInput.trim()) {
       toast({
         title: "Error",
-        description: "Harap masukkan nomor pelanggan",
+        description: "Harap masukkan ID Klien",
         variant: "destructive",
       });
       return;
@@ -101,31 +99,30 @@ export const PaymentPage: React.FC = () => {
     setLoading(true);
     try {
       const response = await api.post('/kasir/cek-tagihan', {
-        nomor_pelanggan: nomorPelanggan,
+        id_klien: parseInt(idKlienInput),
       });
-      
+
       const apiData: ApiResponse = response.data;
-      
-      // Transform API response to match TagihanData interface
+
       const transformedData: TagihanData = {
-        nama: apiData.customer.name,
-        nomor_langganan: apiData.customer.nomor_pelanggan,
-        alamat: apiData.customer.address,
-        periode: apiData.bill.bulan,
+        nama: apiData.customer.nama,
+        id_klien: apiData.customer.id_klien,
+        alamat: apiData.customer.alamat,
+        periode: apiData.bill.periode,
         pemakaian: apiData.bill.pemakaian,
         tarif_per_m3: apiData.bill.tarif_per_m3,
         jumlah_tagihan: apiData.bill.jumlah_tagihan,
-        tanggal_jatuh_tempo: apiData.bill.jatuh_tempo
+        tanggal_jatuh_tempo: apiData.bill.tanggal_jatuh_tempo,
       };
-      
+
       setDataTagihan(transformedData);
       setPaymentForm(prev => ({
         ...prev,
-        nomor_pelanggan: nomorPelanggan,
+        id_klien: apiData.customer.id_klien,
         jumlah_bayar: transformedData.jumlah_tagihan,
       }));
       setStep('payment');
-      
+
       toast({
         title: "Berhasil",
         description: "Data tagihan berhasil ditemukan",
@@ -153,21 +150,18 @@ export const PaymentPage: React.FC = () => {
 
     setLoading(true);
     try {
-      const response = await api.post('/kasir/bayar', {
-        nomor_pelanggan: paymentForm.nomor_pelanggan,
+      await api.post('/kasir/bayar', {
+        id_klien: paymentForm.id_klien,
         metode_pembayaran: paymentForm.metode_pembayaran,
-        keterangan: paymentForm.keterangan,
+        keterangan: paymentForm.keterangan || undefined,
       });
-      
-      console.log('Payment response:', response.data);
-      
+
       setStep('success');
       toast({
         title: "Pembayaran Berhasil!",
         description: "Tagihan telah berhasil dibayar",
       });
     } catch (error: any) {
-      console.error('Payment error:', error);
       toast({
         title: "Error",
         description: error.response?.data?.message || 'Pembayaran gagal',
@@ -180,46 +174,39 @@ export const PaymentPage: React.FC = () => {
 
   const resetForm = () => {
     setStep('search');
-    setNomorPelanggan('');
+    setIdKlienInput('');
     setDataTagihan(null);
     setPaymentForm({
-      nomor_pelanggan: '',
+      id_klien: 0,
       jumlah_bayar: 0,
       metode_pembayaran: 'tunai',
       keterangan: '',
     });
   };
 
-  // Check for data from CheckBillPage
+  // Load data passed from CheckBillPage via localStorage
   useEffect(() => {
     const storedData = localStorage.getItem('kasir_tagihan_data');
     if (storedData) {
       try {
-        const { nomor_pelanggan, tagihan } = JSON.parse(storedData);
-        
-        // Set data tagihan
+        const { id_klien, tagihan } = JSON.parse(storedData);
+
         setDataTagihan(tagihan);
-        setNomorPelanggan(nomor_pelanggan);
-        
-        // Set payment form
+        setIdKlienInput(String(id_klien));
         setPaymentForm(prev => ({
           ...prev,
-          nomor_pelanggan: nomor_pelanggan,
+          id_klien,
           jumlah_bayar: tagihan.jumlah_tagihan,
         }));
-        
-        // Go directly to payment step
         setStep('payment');
-        
-        // Clear localStorage setelah digunakan
+
         localStorage.removeItem('kasir_tagihan_data');
-        
+
         toast({
           title: "Data Tagihan Dimuat",
           description: "Data tagihan berhasil dimuat dari halaman cek tagihan",
         });
-      } catch (error) {
-        console.error('Error parsing stored tagihan data:', error);
+      } catch {
         localStorage.removeItem('kasir_tagihan_data');
       }
     }
@@ -269,9 +256,9 @@ export const PaymentPage: React.FC = () => {
           </div>
           <span>Cari Tagihan</span>
         </div>
-        
+
         <div className="w-12 h-px bg-muted"></div>
-        
+
         <div className={`flex items-center space-x-2 ${step === 'payment' ? 'text-gold' : 'text-muted-foreground'}`}>
           <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
             step === 'payment' ? 'bg-gold text-black' : 'bg-muted text-muted-foreground'
@@ -280,9 +267,9 @@ export const PaymentPage: React.FC = () => {
           </div>
           <span>Pembayaran</span>
         </div>
-        
+
         <div className="w-12 h-px bg-muted"></div>
-        
+
         <div className={`flex items-center space-x-2 ${step === 'success' ? 'text-green-400' : 'text-muted-foreground'}`}>
           <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
             step === 'success' ? 'bg-green-400 text-black' : 'bg-muted text-muted-foreground'
@@ -299,19 +286,20 @@ export const PaymentPage: React.FC = () => {
           <CardHeader>
             <CardTitle>Cari Tagihan Pelanggan</CardTitle>
             <CardDescription>
-              Masukkan nomor pelanggan untuk memulai proses pembayaran
+              Masukkan ID Klien untuk memulai proses pembayaran
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="nomor_pelanggan">Nomor Pelanggan</Label>
+              <Label htmlFor="id_klien">ID Klien</Label>
               <div className="flex gap-2">
                 <Input
-                  id="nomor_pelanggan"
-                  value={nomorPelanggan}
-                  onChange={(e) => setNomorPelanggan(e.target.value)}
+                  id="id_klien"
+                  type="number"
+                  value={idKlienInput}
+                  onChange={(e) => setIdKlienInput(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  placeholder="Masukkan nomor pelanggan (PLG001)"
+                  placeholder="Masukkan ID Klien (contoh: 4)"
                   className="flex-1"
                 />
                 <Button
@@ -348,8 +336,8 @@ export const PaymentPage: React.FC = () => {
                     <span className="font-medium">{dataTagihan.nama}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">No. Pelanggan:</span>
-                    <span className="font-medium">{dataTagihan.nomor_langganan}</span>
+                    <span className="text-muted-foreground">ID Klien:</span>
+                    <span className="font-medium">KLN-{dataTagihan.id_klien}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Periode:</span>
@@ -364,6 +352,10 @@ export const PaymentPage: React.FC = () => {
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Tarif/m³:</span>
                     <span className="font-medium">{formatRupiah(dataTagihan.tarif_per_m3)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Jatuh Tempo:</span>
+                    <span className="font-medium">{formatDate(dataTagihan.tanggal_jatuh_tempo)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Total:</span>
@@ -387,21 +379,21 @@ export const PaymentPage: React.FC = () => {
                     id="jumlah_bayar"
                     type="number"
                     value={paymentForm.jumlah_bayar}
-                    onChange={(e) => setPaymentForm(prev => ({ 
-                      ...prev, 
-                      jumlah_bayar: parseInt(e.target.value) || 0 
+                    onChange={(e) => setPaymentForm(prev => ({
+                      ...prev,
+                      jumlah_bayar: parseInt(e.target.value) || 0,
                     }))}
                     min="0"
                   />
                 </div>
-                
+
                 <div className="space-y-2">
                   <Label>Metode Pembayaran</Label>
                   <Select
                     value={paymentForm.metode_pembayaran}
-                    onValueChange={(value) => setPaymentForm(prev => ({ 
-                      ...prev, 
-                      metode_pembayaran: value 
+                    onValueChange={(value) => setPaymentForm(prev => ({
+                      ...prev,
+                      metode_pembayaran: value,
                     }))}
                   >
                     <SelectTrigger>
@@ -417,15 +409,15 @@ export const PaymentPage: React.FC = () => {
                   </Select>
                 </div>
               </div>
-              
+
               <div className="space-y-2">
                 <Label htmlFor="keterangan">Keterangan (Opsional)</Label>
                 <Textarea
                   id="keterangan"
                   value={paymentForm.keterangan}
-                  onChange={(e) => setPaymentForm(prev => ({ 
-                    ...prev, 
-                    keterangan: e.target.value 
+                  onChange={(e) => setPaymentForm(prev => ({
+                    ...prev,
+                    keterangan: e.target.value,
                   }))}
                   placeholder="Catatan tambahan..."
                   rows={3}
@@ -437,7 +429,7 @@ export const PaymentPage: React.FC = () => {
                   <p className="text-sm text-muted-foreground">Total yang harus dibayar:</p>
                   <p className="text-2xl font-bold text-gold">{formatRupiah(dataTagihan.jumlah_tagihan)}</p>
                 </div>
-                
+
                 <Button
                   onClick={prosesPembayaran}
                   disabled={loading}
@@ -465,19 +457,19 @@ export const PaymentPage: React.FC = () => {
               <div className="w-16 h-16 bg-green-400 rounded-full flex items-center justify-center mx-auto">
                 <CheckCircle className="h-8 w-8 text-black" />
               </div>
-              
+
               <div>
                 <h2 className="text-2xl font-bold text-foreground mb-2">Pembayaran Berhasil!</h2>
                 <p className="text-muted-foreground">
                   Tagihan untuk pelanggan <strong>{dataTagihan?.nama}</strong> telah berhasil dibayar
                 </p>
               </div>
-              
+
               <div className="bg-muted/20 p-4 rounded-lg">
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
-                    <p className="text-muted-foreground">No. Pelanggan:</p>
-                    <p className="font-medium">{dataTagihan?.nomor_langganan}</p>
+                    <p className="text-muted-foreground">ID Klien:</p>
+                    <p className="font-medium">KLN-{dataTagihan?.id_klien}</p>
                   </div>
                   <div>
                     <p className="text-muted-foreground">Periode:</p>
@@ -493,7 +485,7 @@ export const PaymentPage: React.FC = () => {
                   </div>
                 </div>
               </div>
-              
+
               <div className="flex gap-4 justify-center pt-4">
                 <Button onClick={resetForm} className="bg-gradient-gold text-black hover:shadow-gold">
                   Pembayaran Baru
