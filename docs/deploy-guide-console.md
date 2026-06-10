@@ -1671,7 +1671,7 @@ jobs:
           image: ${{ steps.build-image.outputs.image }}
 
       - name: Deploy to ECS
-        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
           task-definition: ${{ steps.task-def.outputs.task-definition }}
           service: ${{ env.ECS_SERVICE }}
@@ -1836,6 +1836,8 @@ git push origin main  # Trigger GitHub Actions dengan kode sebelumnya
    > **Peringatan:** `migrate:fresh` menghapus semua tabel dan data lalu buat ulang dari awal. Gunakan **hanya untuk deploy pertama**. Deploy berikutnya gunakan: `php,artisan,migrate,--force`
 
    > **Seeder yang dijalankan:** `DatabaseSeeder` akan membuat user default — `admin@example.com`, `operator@example.com`, `kasir@example.com` (semua password `password`). Akun klien dibuat oleh admin/operator setelah login.
+
+   > **Prasyarat:** `backend/docker/entrypoint.sh` harus meng-`exec "$@"` jika command override diberikan. Tanpa ini, ECS **mengabaikan** Command override dan task menjalankan web server seperti biasa — task tidak pernah `STOPPED` dan log hanya menampilkan `Configuration cached successfully` → `ready to handle connections` **tanpa** baris `Migrating: ...`. Jika ini terjadi: pastikan image hasil build terbaru sudah berisi fix `entrypoint.sh` (blok `if [ "$#" -gt 0 ]; then exec "$@"; fi` sebelum fallback ke `supervisord`), lalu Stop task lama dan Run new task ulang.
 5. **Create** dan tunggu task berstatus `STOPPED`
 6. Cek log di **CloudWatch → /ecs/watertrack-api** — pastikan tidak ada error migrasi
 

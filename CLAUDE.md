@@ -48,7 +48,7 @@ All passwords are `password`:
 2. Token + user object stored in `localStorage` (`water_billing_token`, `water_billing_user`)
 3. Axios interceptor attaches `Authorization: Bearer <token>` to every request
 4. On 401, interceptor clears localStorage and redirects to `/login`
-5. **Warning**: `AuthController::login` does NOT verify passwords — it issues a token to any known email. This is a dev-only shortcut.
+5. `AuthController::login` verifies credentials via `Hash::check()` against `users.password` — returns HTTP 401 `{"message": "Email atau password salah."}` on mismatch, and records an `AuditLog` entry (`action: 'login'`) on success.
 
 ### Role-Based Access
 - `ProtectedRoute` wraps routes with an optional `allowedRoles` prop

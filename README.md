@@ -375,6 +375,11 @@ npm run test
 4. Configure web server (Apache/Nginx)
 5. Build frontend for production: `npm run build`
 
+### AWS Deployment (ECS Fargate)
+Step-by-step AWS Console guide (RDS, ElastiCache, ECS Fargate, ALB, CloudFront, GitHub Actions CI/CD): see [`docs/deploy-guide-console.md`](docs/deploy-guide-console.md).
+
+> **Production requires Redis** (`SESSION_DRIVER=redis`, `CACHE_STORE=redis`, `QUEUE_CONNECTION=redis`) via the `phpredis` PECL extension — already configured in `backend/Dockerfile`.
+
 ### Docker Deployment
 Docker configuration files are available for containerized deployment.
 
