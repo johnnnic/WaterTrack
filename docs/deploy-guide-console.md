@@ -604,7 +604,7 @@ Buat 4 secret. Untuk masing-masing: **Secrets Manager → Secrets → Store a ne
 | `watertrack/app-key` | `value` | `base64:` + 32-byte base64 random string |
 | `watertrack/db-password` | `value` | password RDS dari langkah 7.2 |
 | `watertrack/db-host` | `value` | RDS endpoint dari langkah 7.2 |
-| `watertrack/redis-host` | `value` | Redis hostname dari langkah 7.3 (tanpa `:6379`) |
+| `watertrack/redis-host` | `value` | `tls://` + Redis hostname dari langkah 7.3 (tanpa `:6379`) |
 
 Untuk setiap secret:
 1. **Secret type:** Other type of secret
@@ -1363,6 +1363,8 @@ Task Definition adalah "blueprint" container: image apa yang dijalankan, berapa 
    | `AWS_DEFAULT_REGION` | `ap-southeast-3` | Region untuk S3 bucket dan ElastiCache. |
    | `BCRYPT_ROUNDS` | `12` | Iterasi hash bcrypt untuk password. `12` ≈ 250ms per hash — aman dari brute force. Dev pakai `10` di `.env.docker` untuk kecepatan. |
 
+   > **`DB_USERNAME`** — **wajib sama persis** dengan **Master username** yang benar-benar dientry saat membuat RDS di langkah 7.2.6. Cek nilai aktualnya di **RDS Console → `watertrack-db-prod` → Configuration → Master username** — nilai ini bisa berbeda dari `watertrack` jika Dev 3 mengetik nama lain (mis. `watertrack_admin`). Jika tidak cocok, Laravel gagal dengan `SQLSTATE[HY000] [1045] Access denied for user '<DB_USERNAME>'@'<ip>' (using password: YES)` **meskipun `DB_PASSWORD` sudah benar**, karena MySQL menolak username yang tidak terdaftar (pesan error sama untuk "username tidak ada" maupun "password salah"). Master username RDS **tidak bisa diubah** setelah instance dibuat — perbaikan dilakukan di task definition: ubah `DB_USERNAME` agar sesuai, buat revisi baru, lalu Force new deployment.
+
    > **Tidak perlu `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`:** ECS Fargate menginjeksikan AWS credentials secara otomatis via IAM Task Role (`watertrack-ecs-task-role`) ke dalam container melalui endpoint metadata internal (`169.254.170.2`). AWS SDK Laravel otomatis membaca dari sana. Hardcode credentials adalah risiko keamanan serius — jangan lakukan.
 
    ---
@@ -1386,7 +1388,7 @@ Task Definition adalah "blueprint" container: image apa yang dijalankan, berapa 
 
    > **ARN suffix wajib disertakan:** Secrets Manager menambahkan 6 karakter acak di akhir setiap secret ARN (mis. `-mxSzGu`). Copy ARN persis dari Shared Info Sheet termasuk suffix. Jika suffix hilang atau salah, ECS gagal start dengan error: `ResourceNotFoundException: Secrets Manager can't find the specified secret`.
 
-   > **`REDIS_HOST`** — secret berisi hostname ElastiCache **tanpa port** (mis. `clustercfg.watertrack-redis-prod.hxtqnn.apse3.cache.amazonaws.com`). Port sudah di-set terpisah via `REDIS_PORT=6379`. Jangan masukkan hostname dengan `:6379` — port akan di-append dua kali oleh Laravel dan koneksi gagal.
+   > **`REDIS_HOST`** — secret berisi hostname ElastiCache **diawali `tls://`** dan **tanpa port** (mis. `tls://clustercfg.watertrack-redis-prod.hxtqnn.apse3.cache.amazonaws.com`). Prefix `tls://` **wajib** karena ElastiCache dibuat dengan **Encryption in-transit: Enable** (langkah 7.3.8) — phpredis hanya mau koneksi TLS jika host diawali `tls://`. Tanpa prefix ini, Laravel gagal dengan `RedisException: read error on connection` saat command pertama (`SELECT`) dikirim plaintext ke server yang TLS-only. Port sudah di-set terpisah via `REDIS_PORT=6379`. Jangan masukkan hostname dengan `:6379` — port akan di-append dua kali oleh Laravel dan koneksi gagal.
 
    > **`APP_KEY`** — nilai diawali `base64:` diikuti 44 karakter. Key ini dipakai Laravel untuk enkripsi session dan cookie. Jika key berubah setelah deploy, **semua session aktif user langsung invalid** (semua pengguna ter-logout otomatis).
 
