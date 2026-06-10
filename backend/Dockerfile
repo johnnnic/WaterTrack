@@ -10,6 +10,7 @@ RUN apk add --no-cache \
     oniguruma-dev \
     zip \
     unzip \
+    && apk add --no-cache --virtual .build-deps $PHPIZE_DEPS \
     && docker-php-ext-install \
         pdo_mysql \
         mbstring \
@@ -18,7 +19,9 @@ RUN apk add --no-cache \
         bcmath \
         gd \
         zip \
-    && docker-php-ext-enable opcache
+    && pecl install redis \
+    && docker-php-ext-enable opcache redis \
+    && apk del .build-deps
 
 # Install Composer
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
