@@ -7,6 +7,7 @@ RUN apk add --no-cache \
     curl \
     libpng-dev \
     libzip-dev \
+    oniguruma-dev \
     zip \
     unzip \
     && docker-php-ext-install \

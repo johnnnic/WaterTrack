@@ -100,7 +100,7 @@ ECS Cluster ARN:             arn:aws:ecs:ap-southeast-3:ACCOUNT:cluster/watertra
 ECS Service ARN:             arn:aws:ecs:ap-southeast-3:ACCOUNT:service/watertrack-cluster/watertrack-api-service
 ALB DNS Name:                watertrack-alb-____.ap-southeast-3.elb.amazonaws.com
 ALB ARN:                     arn:aws:elasticloadbalancing:ap-southeast-3:ACCOUNT:loadbalancer/app/watertrack-alb/____
-Target Group ARN:            arn:aws:elasticloadbalancing:ap-southeast-3:ACCOUNT:targetgroup/watertrack-tg/____
+Target Group ARN:            arn:aws:elasticloadbalancing:ap-southeast-3:775755739096:targetgroup/watertrack-tg/c8a2989c862f2eae
 Route 53 Hosted Zone ID:     Z____________________
 ```
 
@@ -205,6 +205,7 @@ Route 53 Hosted Zone ID:     Z____________________
 | | `AmazonRoute53FullAccess` | Membuat record `api`, root domain, dan `www` |
 | | `CloudWatchLogsFullAccess` | Membuat log group `/ecs/watertrack-api` dan melihat log task |
 | | `AmazonVPCReadOnlyAccess` | Memilih VPC/Subnet/Security Group yang sudah dibuat Dev 2 saat membuat ALB & ECS Service |
+| | `AWSCertificateManagerReadOnly` | Memilih sertifikat ACM (dibuat Dev 2) saat membuat HTTPS listener di ALB ([Bagian 9.6](#96-buat-application-load-balancer-alb)) — tanpa ini, dropdown sertifikat di console gagal load dengan `AccessDeniedException: acm:ListCertificates` |
 
 5. Selain managed policy di atas, **dev3-database** dan **dev5-platform** butuh izin tambahan yang tidak tercakup managed policy manapun — buat sebagai **inline policy** (tab JSON) langsung pada masing-masing user:
 

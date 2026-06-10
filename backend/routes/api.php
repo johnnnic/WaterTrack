@@ -36,8 +36,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/meter-template/{periode}', [MeteranController::class, 'templateMeteran']);
         Route::post('/customer-info', [MeteranController::class, 'getCustomerInfo']);
         Route::post('/bills/generate', [\App\Http\Controllers\Api\Operator\BillController::class, 'generateBills']);
-        Route::apiResource('/users', \App\Http\Controllers\Api\Operator\UserController::class);
-        Route::apiResource('/bills', \App\Http\Controllers\Api\Operator\BillController::class);
+        Route::apiResource('/users', \App\Http\Controllers\Api\Operator\UserController::class)->names('operator.users');
+        Route::apiResource('/bills', \App\Http\Controllers\Api\Operator\BillController::class)->names('operator.bills');
         // Operator: view + update customers only (no create/delete — admin only)
         Route::get('/customers', [\App\Http\Controllers\Api\Admin\CustomerController::class, 'index']);
         Route::get('/customers/{customer}', [\App\Http\Controllers\Api\Admin\CustomerController::class, 'show']);
@@ -46,12 +46,12 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Admin-only routes
     Route::middleware('role:admin')->prefix('admin')->group(function () {
-        Route::apiResource('/users', \App\Http\Controllers\Api\Admin\UserController::class);
+        Route::apiResource('/users', \App\Http\Controllers\Api\Admin\UserController::class)->names('admin.users');
         Route::get('/audit-logs', [\App\Http\Controllers\Api\Admin\AuditLogController::class, 'index']);
         Route::apiResource('/tariffs', \App\Http\Controllers\Api\Admin\TariffController::class);
         Route::apiResource('/customers', \App\Http\Controllers\Api\Admin\CustomerController::class);
         Route::post('/bills/generate', [\App\Http\Controllers\Api\Admin\BillController::class, 'generateBills']);
-        Route::apiResource('/bills', \App\Http\Controllers\Api\Admin\BillController::class);
+        Route::apiResource('/bills', \App\Http\Controllers\Api\Admin\BillController::class)->names('admin.bills');
         Route::get('/payments/stats', [\App\Http\Controllers\Api\Admin\PaymentController::class, 'stats']);
         Route::get('/payments/recent', [\App\Http\Controllers\Api\Admin\PaymentController::class, 'recent']);
         Route::apiResource('/payments', \App\Http\Controllers\Api\Admin\PaymentController::class);
